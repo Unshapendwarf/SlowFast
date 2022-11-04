@@ -916,7 +916,7 @@ _C.SOLVER.BETAS = (0.9, 0.999)
 _C.DALI_ENABLE = False
 
 # DALI dataset file
-_C.DALI_FILE = "dali_dataset_texts"
+_C.DALI_FILE = ""
 
 # sequence_length (int) – Length of sequence to load for each sample.
 _C.DALI_FRAME = 8
