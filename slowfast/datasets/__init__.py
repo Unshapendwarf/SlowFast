@@ -5,7 +5,9 @@ from .ava_dataset import Ava  # noqa
 from .build import DATASET_REGISTRY, build_dataset  # noqa
 from .charades import Charades  # noqa
 from .imagenet import Imagenet  # noqa
-from .kinetics import Kinetics  # noqa
+from .kinetics_custom import Kinetics  # noqa
+
+# from .kinetics import Kinetics  # noqa
 from .ssv2 import Ssv2  # noqa
 
 try:

@@ -1,11 +1,10 @@
 TASK: ssl
 MEMCHECK:
-  ENABLE: False
+  ENABLE: True
   DATASET: kinetics
   BATCH_SIZE: 1
-  ONLY_FIRST_50: True
 TRAIN:
-  ENABLE: True
+  ENABLE: False
   DATASET: kinetics
   EVAL_ENABLE: False
   EVAL_PERIOD: 10
@@ -76,7 +75,7 @@ SOLVER:
   LARS_ON: True
   BASE_LR_SCALE_NUM_SHARDS: True
   LR_POLICY: cosine
-  MAX_EPOCH: 5
+  MAX_EPOCH: 3
   MOMENTUM: 0.9
   WEIGHT_DECAY: 1e-6
   WARMUP_EPOCHS: 35.0

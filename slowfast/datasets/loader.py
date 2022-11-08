@@ -110,7 +110,7 @@ def construct_loader(cfg, split, is_precise_bn=False):
         shuffle = False
         drop_last = False
     elif split in ["memcheck"]:
-        split = "test"
+        split = "train"
         dataset_name = cfg.MEMCHECK.DATASET
         batch_size = int(cfg.MEMCHECK.BATCH_SIZE / max(1, cfg.NUM_GPUS))
         shuffle = False

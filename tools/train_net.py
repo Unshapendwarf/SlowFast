@@ -82,7 +82,7 @@ def train_epoch(
     for cur_iter, (inputs, labels, index, time, meta) in enumerate(train_loader):
         # Transfer the data to the current GPU device.
         batch_size = inputs[0][0].size(0) if isinstance(inputs[0], list) else inputs[0].size(0)
-        print(len(inputs), inputs[0][0].shape)
+        print("train_net", len(inputs), inputs[0][0].shape)
 
         if cfg.NUM_GPUS:
             if isinstance(inputs, (list,)):
@@ -662,15 +662,6 @@ def train(cfg):
             idx_dict,
             writer,
         )
-
-        # # print dictionary information
-        # print(f"idx_dict len: {len(idx_dict)}")
-        # for idx_key in idx_dict:
-        #     if len(idx_dict[idx_key]) > 2:
-        #         print(len(idx_dict[idx_key]))
-        #     for pts_key in idx_dict[idx_key]:
-        #         if idx_dict[idx_key][pts_key] > 1:
-        #             print(f"----------> redudant")
 
         epoch_timer.epoch_toc()
         logger.info(

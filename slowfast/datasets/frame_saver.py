@@ -2,37 +2,52 @@ import os
 import torch
 import numpy as np
 import torch.utils.data
-from torchvision import transforms
-
 
 class frameInfo:
     def __init__(
         self,
+        frames=[],
+        time=0,
     ):
-        self.dictionary = {}
+        self.frames = frames
+        self.time = time
 
-    def get():
-        print("get")
+    def getframes(self):
+        # print("get frames")
+        return self.frames
+
+    def gettime(self):
+        return self.time
 
 
 class DecDict:
-    def __init__(
-
-        self
-    ):
+    def __init__(self):
         self.dictionary = {}
 
-    def get(idx):
-        print("get")
-
-    def put(idx, frame):
+    def put(self, idx, frame):
         print("put")
 
-    def remove():
-        print("remove")
+        # if not exist
+        self.dictionary[idx] = frame
 
-    def remove_all():
+        # if exist
+        # self.dictionary[idx] = ???
+
+    def get(self, idx):
+        print("get")
+        return self.dictionary[idx]
+
+    def remove(self, idx):
+        print("remove")
+        return self.dictionary.pop(idx)
+
+    def remove_all(self):
         print("remove all")
+        self.dictionary.clear()
+
+    def len(self):
+        return len(self.dictionary)
+
 
 """
 DecDict

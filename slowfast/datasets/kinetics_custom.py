@@ -25,6 +25,7 @@ from .transform import (
     MaskingGenerator3D,
     create_random_augment,
 )
+from .frame_saver import frameInfo
 
 logger = logging.get_logger(__name__)
 
@@ -75,9 +76,7 @@ class Kinetics(torch.utils.data.Dataset):
         self._num_epoch = 0.0
         self._num_yielded = 0
         self.skip_rows = self.cfg.DATA.SKIP_ROWS
-        self.use_chunk_loading = (
-            True if self.mode in ["train"] and self.cfg.DATA.LOADER_CHUNK_SIZE > 0 else False
-        )
+        self.use_chunk_loading = True if self.mode in ["train"] and self.cfg.DATA.LOADER_CHUNK_SIZE > 0 else False
         self.dummy_output = None
 
         # For training or validation mode, one single clip is sampled from every
@@ -101,6 +100,8 @@ class Kinetics(torch.utils.data.Dataset):
             self.aug = True
             if self.cfg.AUG.RE_PROB > 0:
                 self.rand_erase = True
+
+        self.frame_dict = {}
 
     def _construct_loader(self):
         """
@@ -131,24 +132,16 @@ class Kinetics(torch.utils.data.Dataset):
                 elif len(fetch_info) == 1:
                     path, label = fetch_info[0], 0
                 else:
-                    raise RuntimeError(
-                        "Failed to parse video fetch {} info {} retries.".format(
-                            path_to_file, fetch_info
-                        )
-                    )
+                    raise RuntimeError("Failed to parse video fetch {} info {} retries.".format(path_to_file, fetch_info))
                 for idx in range(self._num_clips):
                     self._path_to_videos.append(os.path.join(self.cfg.DATA.PATH_PREFIX, path))
                     # self._labels.append(label)
                     self._labels.append(int(label))
                     self._spatial_temporal_idx.append(idx)
                     self._video_meta[clip_idx * self._num_clips + idx] = {}
-        assert len(self._path_to_videos) > 0, "Failed to load Kinetics split {} from {}".format(
-            self._split_idx, path_to_file
-        )
+        assert len(self._path_to_videos) > 0, "Failed to load Kinetics split {} from {}".format(self._split_idx, path_to_file)
         logger.info(
-            "Constructing kinetics dataloader (size: {} skip_rows {}) from {} ".format(
-                len(self._path_to_videos), self.skip_rows, path_to_file
-            )
+            "Constructing kinetics dataloader (size: {} skip_rows {}) from {} ".format(len(self._path_to_videos), self.skip_rows, path_to_file)
         )
 
     def _set_epoch_num(self, epoch):
@@ -190,8 +183,8 @@ class Kinetics(torch.utils.data.Dataset):
             index, self._num_yielded = index
             if self.cfg.MULTIGRID.SHORT_CYCLE:
                 index, short_cycle_idx = index
-        # if self.dummy_output is not None:
-        #     return self.dummy_output
+        if self.dummy_output is not None:
+            return self.dummy_output
         if self.mode in ["train", "val"]:
             # -1 indicates random sampling.
             temporal_sample_index = -1
@@ -200,28 +193,17 @@ class Kinetics(torch.utils.data.Dataset):
             max_scale = self.cfg.DATA.TRAIN_JITTER_SCALES[1]
             crop_size = self.cfg.DATA.TRAIN_CROP_SIZE
             if short_cycle_idx in [0, 1]:
-                crop_size = int(
-                    round(
-                        self.cfg.MULTIGRID.SHORT_CYCLE_FACTORS[short_cycle_idx]
-                        * self.cfg.MULTIGRID.DEFAULT_S
-                    )
-                )
+                crop_size = int(round(self.cfg.MULTIGRID.SHORT_CYCLE_FACTORS[short_cycle_idx] * self.cfg.MULTIGRID.DEFAULT_S))
             if self.cfg.MULTIGRID.DEFAULT_S > 0:
                 # Decreasing the scale is equivalent to using a larger "span"
                 # in a sampling grid.
                 min_scale = int(round(float(min_scale) * crop_size / self.cfg.MULTIGRID.DEFAULT_S))
         elif self.mode in ["test"]:
-            temporal_sample_index = (
-                self._spatial_temporal_idx[index] // self.cfg.TEST.NUM_SPATIAL_CROPS
-            )
+            temporal_sample_index = self._spatial_temporal_idx[index] // self.cfg.TEST.NUM_SPATIAL_CROPS
             # spatial_sample_index is in [0, 1, 2]. Corresponding to left,
             # center, or right if width is larger than height, and top, middle,
             # or bottom if height is larger than width.
-            spatial_sample_index = (
-                (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS)
-                if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
-                else 1
-            )
+            spatial_sample_index = (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS) if self.cfg.TEST.NUM_SPATIAL_CROPS > 1 else 1
             min_scale, max_scale, crop_size = (
                 [self.cfg.DATA.TEST_CROP_SIZE] * 3
                 if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
@@ -247,95 +229,88 @@ class Kinetics(torch.utils.data.Dataset):
         # decoded, repeatly find a random video replacement that can be decoded.
 
         for i_try in range(self._num_retries):
-            video_container = None
-            try:
-                video_container = container.get_video_container(
-                    self._path_to_videos[index],
-                    self.cfg.DATA_LOADER.ENABLE_MULTI_THREAD_DECODE,
-                    self.cfg.DATA.DECODING_BACKEND,
-                )
-            except Exception as e:
-                logger.info(
-                    "Failed to load video from {} with error {}".format(
-                        self._path_to_videos[index], e
-                    )
-                )
-                if self.mode not in ["test"]:
-                    # let's try another one
-                    index = random.randint(0, len(self._path_to_videos) - 1)
-                continue  # Select a random video if the current video was not able to access.
-            if video_container is None:
-                logger.warning(
-                    "Failed to meta load video idx {} from {}; trial {}".format(
-                        index, self._path_to_videos[index], i_try
-                    )
-                )
-                if self.mode not in ["test"] and i_try > self._num_retries // 8:
-                    # let's try another one
-                    index = random.randint(0, len(self._path_to_videos) - 1)
-                continue
-
             frames_decoded, time_idx_decoded = (
                 [None] * num_decode,
                 [None] * num_decode,
             )
 
-            # for i in range(num_decode):
-            num_frames = [self.cfg.DATA.NUM_FRAMES]
-            sampling_rate = utils.get_random_sampling_rate(
-                self.cfg.MULTIGRID.LONG_CYCLE_SAMPLING_RATE,
-                self.cfg.DATA.SAMPLING_RATE,
-            )
-            sampling_rate = [sampling_rate]
-            if len(num_frames) < num_decode:
-                num_frames.extend([num_frames[-1] for i in range(num_decode - len(num_frames))])
-                # base case where keys have same frame-rate as query
-                sampling_rate.extend(
-                    [sampling_rate[-1] for i in range(num_decode - len(sampling_rate))]
+            if self._path_to_videos[index] in self.frame_dict:
+                frame_info = self.frame_dict[self._path_to_videos[index]]
+                frames_decoded = frame_info.getframes()
+                time_idx_decoded = frame_info.gettime()
+                print("hit!")
+            else:
+                video_container = None
+                try:
+                    video_container = container.get_video_container(
+                        self._path_to_videos[index],
+                        self.cfg.DATA_LOADER.ENABLE_MULTI_THREAD_DECODE,
+                        self.cfg.DATA.DECODING_BACKEND,
+                    )
+                except Exception as e:
+                    logger.info("Failed to load video from {} with error {}".format(self._path_to_videos[index], e))
+                    if self.mode not in ["test"]:
+                        # let's try another one
+                        index = random.randint(0, len(self._path_to_videos) - 1)
+                    continue  # Select a random video if the current video was not able to access.
+                if video_container is None:
+                    logger.warning("Failed to meta load video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
+                    if self.mode not in ["test"] and i_try > self._num_retries // 8:
+                        # let's try another one
+                        index = random.randint(0, len(self._path_to_videos) - 1)
+                    continue
+
+                # for i in range(num_decode):
+                num_frames = [self.cfg.DATA.NUM_FRAMES]
+                sampling_rate = utils.get_random_sampling_rate(
+                    self.cfg.MULTIGRID.LONG_CYCLE_SAMPLING_RATE,
+                    self.cfg.DATA.SAMPLING_RATE,
                 )
-            elif len(num_frames) > num_decode:
-                num_frames = num_frames[:num_decode]
-                sampling_rate = sampling_rate[:num_decode]
+                sampling_rate = [sampling_rate]
+                if len(num_frames) < num_decode:
+                    num_frames.extend([num_frames[-1] for i in range(num_decode - len(num_frames))])
+                    # base case where keys have same frame-rate as query
+                    sampling_rate.extend([sampling_rate[-1] for i in range(num_decode - len(sampling_rate))])
+                elif len(num_frames) > num_decode:
+                    num_frames = num_frames[:num_decode]
+                    sampling_rate = sampling_rate[:num_decode]
 
-            if self.mode in ["train"]:
-                assert len(min_scale) == len(max_scale) == len(crop_size) == num_decode
+                if self.mode in ["train"]:
+                    assert len(min_scale) == len(max_scale) == len(crop_size) == num_decode
 
-            target_fps = self.cfg.DATA.TARGET_FPS
-            if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
-                target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
+                target_fps = self.cfg.DATA.TARGET_FPS
+                if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
+                    target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
 
-            # Decode video. Meta info is used to perform selective decoding.
-            frames, time_idx, tdiff = decoder.decode(
-                video_container,
-                sampling_rate,
-                num_frames,
-                temporal_sample_index,
-                self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
-                video_meta=self._video_meta[index]
-                if len(self._video_meta) < 5e6
-                else {},  # do not cache on huge datasets
-                target_fps=target_fps,
-                backend=self.cfg.DATA.DECODING_BACKEND,
-                use_offset=self.cfg.DATA.USE_OFFSET_SAMPLING,
-                max_spatial_scale=min_scale[0]
-                if all(x == min_scale[0] for x in min_scale)
-                else 0,  # if self.mode in ["test"] else 0,
-                time_diff_prob=self.p_convert_dt if self.mode in ["train"] else 0.0,
-                temporally_rnd_clips=True,
-                min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
-                max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
-            )
-            frames_decoded = frames
-            time_idx_decoded = time_idx
+                # Decode video. Meta info is used to perform selective decoding.
+                frames, time_idx, tdiff = decoder.decode(
+                    video_container,
+                    sampling_rate,
+                    num_frames,
+                    temporal_sample_index,
+                    self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
+                    video_meta=self._video_meta[index] if len(self._video_meta) < 5e6 else {},  # do not cache on huge datasets
+                    target_fps=target_fps,
+                    backend=self.cfg.DATA.DECODING_BACKEND,
+                    use_offset=self.cfg.DATA.USE_OFFSET_SAMPLING,
+                    max_spatial_scale=min_scale[0] if all(x == min_scale[0] for x in min_scale) else 0,  # if self.mode in ["test"] else 0,
+                    time_diff_prob=self.p_convert_dt if self.mode in ["train"] else 0.0,
+                    temporally_rnd_clips=True,
+                    min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
+                    max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
+                )
+                frames_decoded = frames
+                time_idx_decoded = time_idx
+
+                # make dictionary
+                frame_info = frameInfo(frames=frames_decoded, time=time_idx_decoded)
+                self.frame_dict[self._path_to_videos[index]] = frame_info
+                print(len(self.frame_dict))
 
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
             if frames_decoded is None or None in frames_decoded:
-                logger.warning(
-                    "Failed to decode video idx {} from {}; trial {}".format(
-                        index, self._path_to_videos[index], i_try
-                    )
-                )
+                logger.warning("Failed to decode video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
                 print(f"num_retries: {self._num_retries}")
                 index = random.randint(0, len(self._path_to_videos) - 1)
                 # if self.mode not in ["test"] and (i_try % (self._num_retries // 8)) == 0:
@@ -343,11 +318,7 @@ class Kinetics(torch.utils.data.Dataset):
                 #     index = random.randint(0, len(self._path_to_videos) - 1)
                 continue
 
-            num_aug = (
-                self.cfg.DATA.TRAIN_CROP_NUM_SPATIAL * self.cfg.AUG.NUM_SAMPLE
-                if self.mode in ["train"]
-                else 1
-            )
+            num_aug = self.cfg.DATA.TRAIN_CROP_NUM_SPATIAL * self.cfg.AUG.NUM_SAMPLE if self.mode in ["train"] else 1
             num_out = num_aug * num_decode
             f_out, time_idx_out = [None] * num_out, [None] * num_out
             idx = -1
@@ -387,9 +358,7 @@ class Kinetics(torch.utils.data.Dataset):
                         f_out[idx] = f_out[idx].permute(0, 2, 3, 1)
 
                     # Perform color normalization.
-                    f_out[idx] = utils.tensor_normalize(
-                        f_out[idx], self.cfg.DATA.MEAN, self.cfg.DATA.STD
-                    )
+                    f_out[idx] = utils.tensor_normalize(f_out[idx], self.cfg.DATA.MEAN, self.cfg.DATA.STD)
 
                     # T H W C -> C T H W.
                     f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
@@ -398,12 +367,8 @@ class Kinetics(torch.utils.data.Dataset):
                         self.cfg.DATA.TRAIN_JITTER_SCALES_RELATIVE,
                         self.cfg.DATA.TRAIN_JITTER_ASPECT_RELATIVE,
                     )
-                    relative_scales = (
-                        None if (self.mode not in ["train"] or len(scl) == 0) else scl
-                    )
-                    relative_aspect = (
-                        None if (self.mode not in ["train"] or len(asp) == 0) else asp
-                    )
+                    relative_scales = None if (self.mode not in ["train"] or len(scl) == 0) else scl
+                    relative_aspect = None if (self.mode not in ["train"] or len(asp) == 0) else asp
 
                     f_out[idx] = utils.spatial_sampling(
                         f_out[idx],
@@ -415,9 +380,7 @@ class Kinetics(torch.utils.data.Dataset):
                         inverse_uniform_sampling=self.cfg.DATA.INV_UNIFORM_SAMPLE,
                         aspect_ratio=relative_aspect,
                         scale=relative_scales,
-                        motion_shift=self.cfg.DATA.TRAIN_JITTER_MOTION_SHIFT
-                        if self.mode in ["train"]
-                        else False,
+                        motion_shift=self.cfg.DATA.TRAIN_JITTER_MOTION_SHIFT if self.mode in ["train"] else False,
                     )
 
                     if self.rand_erase:
@@ -428,9 +391,7 @@ class Kinetics(torch.utils.data.Dataset):
                             num_splits=self.cfg.AUG.RE_COUNT,
                             device="cpu",
                         )
-                        f_out[idx] = erase_transform(f_out[idx].permute(1, 0, 2, 3)).permute(
-                            1, 0, 2, 3
-                        )
+                        f_out[idx] = erase_transform(f_out[idx].permute(1, 0, 2, 3)).permute(1, 0, 2, 3)
 
                     f_out[idx] = utils.pack_pathway_output(self.cfg, f_out[idx])
                     if self.cfg.AUG.GEN_MASK_LOADER:
@@ -451,9 +412,7 @@ class Kinetics(torch.utils.data.Dataset):
 
     def _gen_mask(self):
         if self.cfg.AUG.MASK_TUBE:
-            num_masking_patches = round(
-                np.prod(self.cfg.AUG.MASK_WINDOW_SIZE) * self.cfg.AUG.MASK_RATIO
-            )
+            num_masking_patches = round(np.prod(self.cfg.AUG.MASK_WINDOW_SIZE) * self.cfg.AUG.MASK_RATIO)
             min_mask = num_masking_patches // 5
             masked_position_generator = MaskingGenerator(
                 mask_window_size=self.cfg.AUG.MASK_WINDOW_SIZE,
@@ -469,9 +428,7 @@ class Kinetics(torch.utils.data.Dataset):
             mask_t_ind = random.sample(range(0, self.cfg.AUG.MASK_WINDOW_SIZE[0]), n_mask)
             mask[mask_t_ind, :, :] += 1
         else:
-            num_masking_patches = round(
-                np.prod(self.cfg.AUG.MASK_WINDOW_SIZE) * self.cfg.AUG.MASK_RATIO
-            )
+            num_masking_patches = round(np.prod(self.cfg.AUG.MASK_WINDOW_SIZE) * self.cfg.AUG.MASK_RATIO)
             max_mask = np.prod(self.cfg.AUG.MASK_WINDOW_SIZE[1:])
             min_mask = max_mask // 5
             masked_position_generator = MaskingGenerator3D(
