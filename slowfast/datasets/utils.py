@@ -98,9 +98,7 @@ def pack_pathway_output(cfg, frames):
         slow_pathway = torch.index_select(
             frames,
             1,
-            torch.linspace(
-                0, frames.shape[1] - 1, frames.shape[1] // cfg.SLOWFAST.ALPHA
-            ).long(),
+            torch.linspace(0, frames.shape[1] - 1, frames.shape[1] // cfg.SLOWFAST.ALPHA).long(),
         )
         frame_list = [slow_pathway, fast_pathway]
     else:
@@ -162,11 +160,7 @@ def spatial_sampling(
             )
             frames, _ = transform.random_crop(frames, crop_size)
         else:
-            transform_func = (
-                transform.random_resized_crop_with_shift
-                if motion_shift
-                else transform.random_resized_crop
-            )
+            transform_func = transform.random_resized_crop_with_shift if motion_shift else transform.random_resized_crop
             frames = transform_func(
                 images=frames,
                 target_height=crop_size,
@@ -174,15 +168,14 @@ def spatial_sampling(
                 scale=scale,
                 ratio=aspect_ratio,
             )
+            # print(frames.shape)
         if random_horizontal_flip:
             frames, _ = transform.horizontal_flip(0.5, frames)
     else:
         # The testing is deterministic and no jitter should be performed.
         # min_scale, max_scale, and crop_size are expect to be the same.
         assert len({min_scale, max_scale}) == 1
-        frames, _ = transform.random_short_side_scale_jitter(
-            frames, min_scale, max_scale
-        )
+        frames, _ = transform.random_short_side_scale_jitter(frames, min_scale, max_scale)
         frames, _ = transform.uniform_crop(frames, crop_size, spatial_idx)
     return frames
 
@@ -265,9 +258,7 @@ def load_image_lists(frame_list_file, prefix="", return_list=False):
             image_paths[video_name].append(path)
             frame_labels = row[-1].replace('"', "")
             if frame_labels != "":
-                labels[video_name].append(
-                    [int(x) for x in frame_labels.split(",")]
-                )
+                labels[video_name].append([int(x) for x in frame_labels.split(",")])
             else:
                 labels[video_name].append([])
 
@@ -420,9 +411,7 @@ def aug_frame(
         inverse_uniform_sampling=cfg.DATA.INV_UNIFORM_SAMPLE,
         aspect_ratio=relative_aspect,
         scale=relative_scales,
-        motion_shift=cfg.DATA.TRAIN_JITTER_MOTION_SHIFT
-        if mode in ["train"]
-        else False,
+        motion_shift=cfg.DATA.TRAIN_JITTER_MOTION_SHIFT if mode in ["train"] else False,
     )
 
     if rand_erase:
@@ -441,9 +430,7 @@ def aug_frame(
 
 
 def _frame_to_list_img(frames):
-    img_list = [
-        transforms.ToPILImage()(frames[i]) for i in range(frames.size(0))
-    ]
+    img_list = [transforms.ToPILImage()(frames[i]) for i in range(frames.size(0))]
     return img_list
 
 

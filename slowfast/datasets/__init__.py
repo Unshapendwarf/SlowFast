@@ -7,7 +7,7 @@ from .charades import Charades  # noqa
 from .imagenet import Imagenet  # noqa
 from .kinetics_custom import Kinetics  # noqa
 
-# from .kinetics import Kinetics  # noqa
+# from .kinetics import Kinetics  # default kinetics
 from .ssv2 import Ssv2  # noqa
 
 try:

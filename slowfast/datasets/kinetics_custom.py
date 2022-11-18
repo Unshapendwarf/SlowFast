@@ -13,6 +13,7 @@ import slowfast.utils.logging as logging
 from slowfast.utils.env import pathmgr
 
 import nvtx
+from pympler.asizeof import asizeof
 
 from . import decoder as decoder
 from . import transform as transform
@@ -25,6 +26,7 @@ from .transform import (
     MaskingGenerator3D,
     create_random_augment,
 )
+
 from .frame_saver import frameInfo
 
 logger = logging.get_logger(__name__)
@@ -42,7 +44,7 @@ class Kinetics(torch.utils.data.Dataset):
     bottom crop if the height is larger than the width.
     """
 
-    def __init__(self, cfg, mode, num_retries=3):
+    def __init__(self, cfg, mode, num_retries=1):
         """
         Construct the Kinetics video loader with a given csv file. The format of
         the csv file is:
@@ -100,7 +102,7 @@ class Kinetics(torch.utils.data.Dataset):
             self.aug = True
             if self.cfg.AUG.RE_PROB > 0:
                 self.rand_erase = True
-
+        # #hong added this for storage of decoded frames
         self.frame_dict = {}
 
     def _construct_loader(self):
@@ -234,12 +236,7 @@ class Kinetics(torch.utils.data.Dataset):
                 [None] * num_decode,
             )
 
-            if self._path_to_videos[index] in self.frame_dict:
-                frame_info = self.frame_dict[self._path_to_videos[index]]
-                frames_decoded = frame_info.getframes()
-                time_idx_decoded = frame_info.gettime()
-                print("hit!")
-            else:
+            with nvtx.annotate("dec", color="red", domain="decode"):
                 video_container = None
                 try:
                     video_container = container.get_video_container(
@@ -282,8 +279,29 @@ class Kinetics(torch.utils.data.Dataset):
                 if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
                     target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
 
+                # cur_preview = self.cfg.NUM_PREVIEW
+                cur_preview = 32
+
+                if self._path_to_videos[index] not in self.frame_dict:
+                    # self.frame_dict[self._path_to_videos[index]] = frameInfo(path=self._path_to_videos[index], frames=[], times=[], diff_augs=[])
+                    self.frame_dict[self._path_to_videos[index]] = {"frames": [], "times": [], "diff_augs": []}
+
+                # elif len(self.frame_dict[self._path_to_videos[index]]["frames"]) == 0:
+                #     # print("here")
+                #     # tmp_f = self.frame_dict[self._path_to_videos[index]]["frames"][:]
+                #     # tmp_t = self.frame_dict[self._path_to_videos[index]]["times"][:]
+                #     # tmp_d = self.frame_dict[self._path_to_videos[index]]["diff_augs"][:]
+
+                #     # self.frame_dict[self._path_to_videos[index]] = None
+                #     del self.frame_dict[self._path_to_videos[index]]
+                #     # self.frame_dict[self._path_to_videos[index]] = {"frames": tmp_f, "times": tmp_t, "diff_augs": tmp_d}
+                #     self.frame_dict[self._path_to_videos[index]] = {"frames": [], "times": [], "diff_augs": []}
+                # print(os.getpid(), index, len(self.frame_dict[self._path_to_videos[index]]["frames"]), asizeof(self.frame_dict))
+                # for i_key, i_val in self.frame_dict.items():
+                #     print(i_key, asizeof(i_val))
+
                 # Decode video. Meta info is used to perform selective decoding.
-                frames, time_idx, tdiff = decoder.decode(
+                frames, time_idx, tdiff = decoder.enhanced_decode(
                     video_container,
                     sampling_rate,
                     num_frames,
@@ -298,15 +316,15 @@ class Kinetics(torch.utils.data.Dataset):
                     temporally_rnd_clips=True,
                     min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
                     max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
+                    num_preview=cur_preview,
+                    frame_container=self.frame_dict[self._path_to_videos[index]],
                 )
                 frames_decoded = frames
                 time_idx_decoded = time_idx
 
-                # make dictionary
-                frame_info = frameInfo(frames=frames_decoded, time=time_idx_decoded)
-                self.frame_dict[self._path_to_videos[index]] = frame_info
-                print(len(self.frame_dict))
+                # print(f"kinetics_custom.py/Kinetics/__getitem__: {frames_decoded[0].shape}, {len(frames_decoded)},{time_idx[0]}")
 
+            # print(f"kinetics_custom.py:time_idx_decoded:{time_idx_decoded}")
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
             if frames_decoded is None or None in frames_decoded:
@@ -324,79 +342,80 @@ class Kinetics(torch.utils.data.Dataset):
             idx = -1
             label = self._labels[index]
 
-            for i in range(num_decode):
-                for _ in range(num_aug):
-                    idx += 1
-                    f_out[idx] = frames_decoded[i].clone()
-                    time_idx_out[idx] = time_idx_decoded[i, :]
+            with nvtx.annotate("aug", color="green", domain="aug"):
+                for i in range(num_decode):
+                    for _ in range(num_aug):
+                        idx += 1
+                        f_out[idx] = frames_decoded[i].clone()
+                        time_idx_out[idx] = time_idx_decoded[i, :]
 
-                    f_out[idx] = f_out[idx].float()
-                    f_out[idx] = f_out[idx] / 255.0
+                        f_out[idx] = f_out[idx].float()
+                        f_out[idx] = f_out[idx] / 255.0
 
-                    if self.mode in ["train"] and self.cfg.DATA.SSL_COLOR_JITTER:
-                        f_out[idx] = transform.color_jitter_video_ssl(
+                        if self.mode in ["train"] and self.cfg.DATA.SSL_COLOR_JITTER:
+                            f_out[idx] = transform.color_jitter_video_ssl(
+                                f_out[idx],
+                                bri_con_sat=self.cfg.DATA.SSL_COLOR_BRI_CON_SAT,
+                                hue=self.cfg.DATA.SSL_COLOR_HUE,
+                                p_convert_gray=self.p_convert_gray,
+                                moco_v2_aug=self.cfg.DATA.SSL_MOCOV2_AUG,
+                                gaussan_sigma_min=self.cfg.DATA.SSL_BLUR_SIGMA_MIN,
+                                gaussan_sigma_max=self.cfg.DATA.SSL_BLUR_SIGMA_MAX,
+                            )
+
+                        if self.aug and self.cfg.AUG.AA_TYPE:
+                            aug_transform = create_random_augment(
+                                input_size=(f_out[idx].size(1), f_out[idx].size(2)),
+                                auto_augment=self.cfg.AUG.AA_TYPE,
+                                interpolation=self.cfg.AUG.INTERPOLATION,
+                            )
+                            # T H W C -> T C H W.
+                            f_out[idx] = f_out[idx].permute(0, 3, 1, 2)
+                            list_img = self._frame_to_list_img(f_out[idx])
+                            list_img = aug_transform(list_img)
+                            f_out[idx] = self._list_img_to_frames(list_img)
+                            f_out[idx] = f_out[idx].permute(0, 2, 3, 1)
+
+                        # Perform color normalization.
+                        f_out[idx] = utils.tensor_normalize(f_out[idx], self.cfg.DATA.MEAN, self.cfg.DATA.STD)
+
+                        # T H W C -> C T H W.
+                        f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
+
+                        scl, asp = (
+                            self.cfg.DATA.TRAIN_JITTER_SCALES_RELATIVE,
+                            self.cfg.DATA.TRAIN_JITTER_ASPECT_RELATIVE,
+                        )
+                        relative_scales = None if (self.mode not in ["train"] or len(scl) == 0) else scl
+                        relative_aspect = None if (self.mode not in ["train"] or len(asp) == 0) else asp
+
+                        f_out[idx] = utils.spatial_sampling(
                             f_out[idx],
-                            bri_con_sat=self.cfg.DATA.SSL_COLOR_BRI_CON_SAT,
-                            hue=self.cfg.DATA.SSL_COLOR_HUE,
-                            p_convert_gray=self.p_convert_gray,
-                            moco_v2_aug=self.cfg.DATA.SSL_MOCOV2_AUG,
-                            gaussan_sigma_min=self.cfg.DATA.SSL_BLUR_SIGMA_MIN,
-                            gaussan_sigma_max=self.cfg.DATA.SSL_BLUR_SIGMA_MAX,
+                            spatial_idx=spatial_sample_index,
+                            min_scale=min_scale[i],
+                            max_scale=max_scale[i],
+                            crop_size=crop_size[i],
+                            random_horizontal_flip=self.cfg.DATA.RANDOM_FLIP,
+                            inverse_uniform_sampling=self.cfg.DATA.INV_UNIFORM_SAMPLE,
+                            aspect_ratio=relative_aspect,
+                            scale=relative_scales,
+                            motion_shift=self.cfg.DATA.TRAIN_JITTER_MOTION_SHIFT if self.mode in ["train"] else False,
                         )
 
-                    if self.aug and self.cfg.AUG.AA_TYPE:
-                        aug_transform = create_random_augment(
-                            input_size=(f_out[idx].size(1), f_out[idx].size(2)),
-                            auto_augment=self.cfg.AUG.AA_TYPE,
-                            interpolation=self.cfg.AUG.INTERPOLATION,
-                        )
-                        # T H W C -> T C H W.
-                        f_out[idx] = f_out[idx].permute(0, 3, 1, 2)
-                        list_img = self._frame_to_list_img(f_out[idx])
-                        list_img = aug_transform(list_img)
-                        f_out[idx] = self._list_img_to_frames(list_img)
-                        f_out[idx] = f_out[idx].permute(0, 2, 3, 1)
+                        if self.rand_erase:
+                            erase_transform = RandomErasing(
+                                self.cfg.AUG.RE_PROB,
+                                mode=self.cfg.AUG.RE_MODE,
+                                max_count=self.cfg.AUG.RE_COUNT,
+                                num_splits=self.cfg.AUG.RE_COUNT,
+                                device="cpu",
+                            )
+                            f_out[idx] = erase_transform(f_out[idx].permute(1, 0, 2, 3)).permute(1, 0, 2, 3)
 
-                    # Perform color normalization.
-                    f_out[idx] = utils.tensor_normalize(f_out[idx], self.cfg.DATA.MEAN, self.cfg.DATA.STD)
-
-                    # T H W C -> C T H W.
-                    f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
-
-                    scl, asp = (
-                        self.cfg.DATA.TRAIN_JITTER_SCALES_RELATIVE,
-                        self.cfg.DATA.TRAIN_JITTER_ASPECT_RELATIVE,
-                    )
-                    relative_scales = None if (self.mode not in ["train"] or len(scl) == 0) else scl
-                    relative_aspect = None if (self.mode not in ["train"] or len(asp) == 0) else asp
-
-                    f_out[idx] = utils.spatial_sampling(
-                        f_out[idx],
-                        spatial_idx=spatial_sample_index,
-                        min_scale=min_scale[i],
-                        max_scale=max_scale[i],
-                        crop_size=crop_size[i],
-                        random_horizontal_flip=self.cfg.DATA.RANDOM_FLIP,
-                        inverse_uniform_sampling=self.cfg.DATA.INV_UNIFORM_SAMPLE,
-                        aspect_ratio=relative_aspect,
-                        scale=relative_scales,
-                        motion_shift=self.cfg.DATA.TRAIN_JITTER_MOTION_SHIFT if self.mode in ["train"] else False,
-                    )
-
-                    if self.rand_erase:
-                        erase_transform = RandomErasing(
-                            self.cfg.AUG.RE_PROB,
-                            mode=self.cfg.AUG.RE_MODE,
-                            max_count=self.cfg.AUG.RE_COUNT,
-                            num_splits=self.cfg.AUG.RE_COUNT,
-                            device="cpu",
-                        )
-                        f_out[idx] = erase_transform(f_out[idx].permute(1, 0, 2, 3)).permute(1, 0, 2, 3)
-
-                    f_out[idx] = utils.pack_pathway_output(self.cfg, f_out[idx])
-                    if self.cfg.AUG.GEN_MASK_LOADER:
-                        mask = self._gen_mask()
-                        f_out[idx] = f_out[idx] + [torch.Tensor(), mask]
+                        f_out[idx] = utils.pack_pathway_output(self.cfg, f_out[idx])
+                        if self.cfg.AUG.GEN_MASK_LOADER:
+                            mask = self._gen_mask()
+                            f_out[idx] = f_out[idx] + [torch.Tensor(), mask]
 
             frames = f_out[0] if num_out == 1 else f_out
             time_idx = np.array(time_idx_out)

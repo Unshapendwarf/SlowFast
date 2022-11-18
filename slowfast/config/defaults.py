@@ -913,6 +913,8 @@ _C.SOLVER.BETAS = (0.9, 0.999)
 # ---------------------------------------------------------------------------- #
 
 # Use NVIDIA DALI pipeline instead of pytorch dataloader
+_C.NUM_PREVIEW = 0
+
 _C.DALI_ENABLE = False
 
 # DALI dataset file
@@ -1229,9 +1231,7 @@ _C.DEMO.DISPLAY_HEIGHT = 0
 # only used for detection tasks.
 _C.DEMO.DETECTRON2_CFG = "COCO-Detection/faster_rcnn_R_50_FPN_3x.yaml"
 # Path to Detectron2 object detection model pre-trained weights.
-_C.DEMO.DETECTRON2_WEIGHTS = (
-    "detectron2://COCO-Detection/faster_rcnn_R_50_FPN_3x/137849458/model_final_280758.pkl"
-)
+_C.DEMO.DETECTRON2_WEIGHTS = "detectron2://COCO-Detection/faster_rcnn_R_50_FPN_3x/137849458/model_final_280758.pkl"
 # Threshold for choosing predicted bounding boxes by Detectron2.
 _C.DEMO.DETECTRON2_THRESH = 0.9
 # Number of overlapping frames between 2 consecutive clips.

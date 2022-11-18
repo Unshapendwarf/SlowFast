@@ -10,6 +10,10 @@ import torch
 import torchvision.io as io
 
 from . import transform as transform
+from .frame_saver import frameInfo
+
+import threading
+import nvtx
 
 logger = logging.getLogger(__name__)
 
@@ -403,7 +407,7 @@ def pyav_decode(
     frames_length = container.streams.video[0].frames
     duration = container.streams.video[0].duration
 
-    if duration is not None:
+    if duration is None:
         # If failed to fetch the decoding information, decode the entire video.
         # print("all decoding")
         decode_all_video = True
@@ -626,5 +630,252 @@ def decode(
         start_end_delta_time = start_end_delta_time_
         time_diff_aug = time_diff_aug_
         assert all(frames_out[i].shape[0] == num_frames_orig[i] for i in range(num_decode))
+    return frames_out, start_end_delta_time, time_diff_aug
+
+
+def pyav_all_decode(
+    container,
+    sampling_rate,
+    num_frames,
+    clip_idx,
+    num_clips_uniform=10,
+    target_fps=30,
+    use_offset=False,
+    modalities=("visual",),
+    max_spatial_scale=0,
+    min_delta=-math.inf,
+    max_delta=math.inf,
+):
+    # Try to fetch the decoding information from the video head. Some of the
+    # videos does not support fetching the decoding information, for that case
+    # it will get None duration.
+    fps = float(container.streams.video[0].average_rate)
+    # frames_length = container.streams.video[0].frames
+    # duration = container.streams.video[0].duration
+
+    # always decode all frames
+    decode_all_video = True
+    video_start_pts, video_end_pts = 0, math.inf
+    start_end_delta_time = None
+
+    frames = None
+    if container.streams.video:
+        video_frames, max_pts = pyav_decode_stream(
+            container,
+            video_start_pts,
+            video_end_pts,
+            container.streams.video[0],
+            {"video": 0},
+        )
+        container.close()
+
+        frames = [frame.to_rgb().to_ndarray() for frame in video_frames]
+        frames = torch.as_tensor(np.stack(frames))
+    frames_out = [frames]
+
+    return frames_out, fps, decode_all_video, start_end_delta_time
+
+
+def sub_decoder(
+    container,
+    sampling_rate,
+    num_frames,
+    clip_idx=-1,
+    num_clips_uniform=10,
+    target_fps=30,
+    max_spatial_scale=0,
+    use_offset=False,
+    time_diff_prob=0.0,
+    gaussian_prob=0.0,
+    min_delta=-math.inf,
+    max_delta=math.inf,
+    temporally_rnd_clips=True,
+    num_preview=4,
+    frame_container={"frames": [], "times": [], "diff_augs": []},
+):
+    # print("decoder works")
+    # only one decoder for enhanced one: PyAV
+    # print(f"{num_frames}, {type(num_frames)}")  # num_frames : [8, 8]
+    assert clip_idx >= -1, "Not valied clip_idx {}".format(clip_idx)
+    assert len(sampling_rate) == len(num_frames)
+    num_decode = len(num_frames)  # num_decode==2 for "train"
+    num_frames_orig = num_frames
+    # print(f"{temporally_rnd_clips} for temporally_rnd_clips")  # temporally_rnd_clips is "True" for "train"
+    if num_decode > 1 and temporally_rnd_clips:
+        ind_clips = np.random.permutation(num_decode)
+        sampling_rate = [sampling_rate[i] for i in ind_clips]
+        num_frames = [num_frames[i] for i in ind_clips]
+    else:
+        ind_clips = np.arange(num_decode)  # clips come temporally ordered from decoder
+    try:
+        assert min_delta == -math.inf and max_delta == math.inf, "delta sampling not supported in pyav"
+        frames_decoded, fps, decode_all_video, start_end_delta_time = pyav_all_decode(
+            container,
+            sampling_rate,
+            num_frames,
+            clip_idx,
+            num_clips_uniform,
+            target_fps,
+            use_offset=use_offset,
+            modalities=("visual",),
+            max_spatial_scale=max_spatial_scale,
+            min_delta=min_delta,
+            max_delta=max_delta,
+        )
+    except Exception as e:
+        print("Failed to decode with exception: {}".format(e))
+        # frame_container.putInfo(None, None, None)
+        frame_container["frames"].append(None)
+        frame_container["times"].append(None)
+        frame_container["diff_augs"].append(None)
+
+    # Return None if the frames was not decoded successfully.
+    if frames_decoded is None or None in frames_decoded:
+        # frame_container.putInfo(None, None, None)
+        frame_container["frames"].append(None)
+        frame_container["times"].append(None)
+        frame_container["diff_augs"].append(None)
+
+    if not isinstance(frames_decoded, list):
+        frames_decoded = [frames_decoded]
+    num_decoded = len(frames_decoded)
+    clip_sizes = [np.maximum(1.0, sampling_rate[i] * num_frames[i] / target_fps * fps) for i in range(len(sampling_rate))]
+
+    for i in range(num_preview):
+        # print(f"num_preview: {i}/{num_preview}")
+        if decode_all_video:  # full video was decoded (not trimmed yet)
+            # assert num_decoded == 1 and start_end_delta_time is None
+            start_end_delta_time = get_multiple_start_end_idx(
+                frames_decoded[0].shape[0],
+                clip_sizes,
+                clip_idx if decode_all_video else 0,
+                num_clips_uniform if decode_all_video else 1,
+                min_delta=min_delta,
+                max_delta=max_delta,
+                use_offset=use_offset,
+            )
+            # 300, [63.93606393606393, 63.93606393606393], -1, 10, -inf, inf, False
+            # torch.Size([8, 240, 320, 3]) 2
+
+        frames_out, start_inds, time_diff_aug = (
+            [None] * num_decode,
+            [None] * num_decode,
+            [None] * num_decode,
+        )
+        augment_vid = gaussian_prob > 0.0 or time_diff_prob > 0.0
+        for k in range(num_decode):
+            T = num_frames[k]
+            # Perform temporal sampling from the decoded video.
+
+            if decode_all_video:
+                frames = frames_decoded[0]
+                if augment_vid:
+                    frames = frames.clone()
+                start_idx, end_idx = (
+                    start_end_delta_time[k, 0],
+                    start_end_delta_time[k, 1],
+                )
+            else:
+                frames = frames_decoded[k]
+                # video is already trimmed so we just need subsampling
+                start_idx, end_idx, clip_position = get_start_end_idx(frames.shape[0], clip_sizes[k], 0, 1)
+            if augment_vid:  # augment_vid is false for train
+                frames, time_diff_aug[k] = transform.augment_raw_frames(frames, time_diff_prob, gaussian_prob)
+            frames_k = temporal_sampling(frames, start_idx, end_idx, T)
+            frames_out[k] = frames_k
+
+        # if we shuffle, need to randomize the output, otherwise it will always be past->future
+        if num_decode > 1 and temporally_rnd_clips:
+            frames_out_, time_diff_aug_ = [None] * num_decode, [None] * num_decode
+            start_end_delta_time_ = np.zeros_like(start_end_delta_time)
+            for i, j in enumerate(ind_clips):
+                frames_out_[j] = frames_out[i]
+                start_end_delta_time_[j, :] = start_end_delta_time[i, :]
+                time_diff_aug_[j] = time_diff_aug[i]
+
+            frames_out = frames_out_
+            start_end_delta_time = start_end_delta_time_
+            time_diff_aug = time_diff_aug_
+            assert all(frames_out[i].shape[0] == num_frames_orig[i] for i in range(num_decode))
+
+        # copying for reducing RAM share
+        ret_frame = frames_out[:]
+        ret_time = start_end_delta_time[:]
+        ret_diff_aug = time_diff_aug[:]
+        frames_out, start_end_delta_time, time_diff_aug = None, None, None
+        # print(ret_frame)
+        # frame_container.putInfo(ret_frame, ret_time, ret_diff_aug)
+        frame_container["frames"].append(ret_frame)
+        frame_container["times"].append(ret_time)
+        frame_container["diff_augs"].append(ret_diff_aug)
+
+        # frame_container.putInfo(frames_out, start_end_delta_time, time_diff_aug)
+
+
+def enhanced_decode(
+    container,
+    sampling_rate,
+    num_frames,
+    clip_idx=-1,
+    num_clips_uniform=10,
+    video_meta=None,
+    target_fps=30,
+    backend="pyav",
+    max_spatial_scale=0,
+    use_offset=False,
+    time_diff_prob=0.0,
+    gaussian_prob=0.0,
+    min_delta=-math.inf,
+    max_delta=math.inf,
+    temporally_rnd_clips=True,
+    num_preview=4,
+    frame_container={"frames": [], "times": [], "diff_augs": []},
+):
+    if backend != "pyav":
+        raise NotImplementedError("Only support pyav but given {} ".format(backend))
+
+    min_preview = 2  # min_preview is a threshold
+    frame_count = len(frame_container["frames"])
+    t1_args = (
+        container,
+        sampling_rate,
+        num_frames,
+        clip_idx,
+        num_clips_uniform,
+        target_fps,
+        max_spatial_scale,
+        use_offset,
+        time_diff_prob,
+        gaussian_prob,
+        min_delta,
+        max_delta,
+        temporally_rnd_clips,
+        num_preview,
+        frame_container,
+    )
+
+    if frame_count < min_preview:
+        # run decoder
+        # wait for decoder returns
+        t1 = threading.Thread(target=sub_decoder, args=t1_args)
+        t1.start()
+        t1.join()
+
+    elif frame_count == min_preview:
+        # run decoder
+        # No need to wait decoder returns
+        # print(f"decode again")
+        t1 = threading.Thread(target=sub_decoder, args=t1_args)
+        t1.start()
+        # t1.join()
+
+    else:
+        None
+        # print("use predecoded batches")
+
+    # frames_out, start_end_delta_time, time_diff_aug = frame_container.popInfo()
+    frames_out = frame_container["frames"].pop(0)
+    start_end_delta_time = frame_container["times"].pop(0)
+    time_diff_aug = frame_container["diff_augs"].pop(0)
 
     return frames_out, start_end_delta_time, time_diff_aug

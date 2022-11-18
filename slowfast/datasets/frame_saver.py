@@ -1,58 +1,30 @@
-import os
+import sys
 import torch
 import numpy as np
 import torch.utils.data
+from pympler.asizeof import asizeof
+
 
 class frameInfo:
-    def __init__(
-        self,
-        frames=[],
-        time=0,
-    ):
-        self.frames = frames
-        self.time = time
+    __slots__ = ["path", "frames", "times", "diff_augs"]
 
-    def getframes(self):
-        # print("get frames")
-        return self.frames
+    def __init__(self, path, frames: list, times: list, diff_augs: list):
+        self.path = path
+        self.frames: list = frames
+        self.times: list = times
+        self.diff_augs: list = diff_augs
 
-    def gettime(self):
-        return self.time
+    def putInfo(self, frame, time_idx, diff_aug):
+        self.frames.append(frame)
+        self.times.append(time_idx)
+        self.diff_augs.append(diff_aug)
 
+    def popInfo(self):
+        # print(f"popInfo() {asizeof(self.frames)}")
+        return self.frames.pop(0), self.times.pop(0), self.diff_augs.pop(0)
 
-class DecDict:
-    def __init__(self):
-        self.dictionary = {}
-
-    def put(self, idx, frame):
-        print("put")
-
-        # if not exist
-        self.dictionary[idx] = frame
-
-        # if exist
-        # self.dictionary[idx] = ???
-
-    def get(self, idx):
-        print("get")
-        return self.dictionary[idx]
-
-    def remove(self, idx):
-        print("remove")
-        return self.dictionary.pop(idx)
-
-    def remove_all(self):
-        print("remove all")
-        self.dictionary.clear()
-
-    def len(self):
-        return len(self.dictionary)
-
-
-"""
-DecDict
-{
-    video_idx(int):frameInformation(frameInfo), ....
-}
-
-"""
+    def getLen(self):
+        if len(self.frames) == len(self.times) and len(self.times) == len(self.diff_augs):
+            return len(self.frames)
+        else:
+            return -1

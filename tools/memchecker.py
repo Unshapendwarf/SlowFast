@@ -42,9 +42,10 @@ def perform_check(mcheck_loader, cfg):
     start_T = TT.time()
     for cur_iter, (inputs, labels, index, time, meta) in enumerate(mcheck_loader):
         end_T = TT.time()
-        print(f"time differene: {end_T-start_T}")
+        # print(f"iter{cur_iter}, time differene: {end_T-start_T}")
         start_T = end_T
         # Transfer the data to the current GPU device.
+        # continue
         if cfg.NUM_GPUS:
             if isinstance(inputs, (list,)):
                 for i in range(len(inputs)):
@@ -70,6 +71,7 @@ def perform_check(mcheck_loader, cfg):
         # print(labels.shape)
         # print(index.shape)
         # print(time.shape)
+    # print("one epoch done")
     return "done"
 
 
@@ -101,8 +103,12 @@ def memcheck(cfg):
     # # Perform memory checkiong on the entire dataset.
 
     start_epoch = 0
+    start_epoch_time = TT.time()
     for cur_epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCH):
         performed_return = perform_check(memcheck_loader, cfg)
+        end_epoch_time = TT.time()
+        print(f"{cur_epoch}, {end_epoch_time-start_epoch_time}")
+        start_epoch_time = TT.time()
 
     # put the gpu_mem_usage() return in dataloader
     # misc.gpu_mem_usage(),
