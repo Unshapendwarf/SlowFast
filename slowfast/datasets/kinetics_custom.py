@@ -280,7 +280,7 @@ class Kinetics(torch.utils.data.Dataset):
                     target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
 
                 # cur_preview = self.cfg.NUM_PREVIEW
-                cur_preview = 32
+                cur_preview = 4
 
                 if self._path_to_videos[index] not in self.frame_dict:
                     # self.frame_dict[self._path_to_videos[index]] = frameInfo(path=self._path_to_videos[index], frames=[], times=[], diff_augs=[])
