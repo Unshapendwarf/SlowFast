@@ -28,29 +28,6 @@ from .transform import (
 
 logger = logging.get_logger(__name__)
 
-import sys
-import grpc
-import atexit
-
-sys.path.append("/home/hong/slowfast/grpc_fs")
-import data_feed_pb2
-import data_feed_pb2_grpc
-
-_worker_channel_singleton = None
-_worker_stub_singleton = None
-
-
-def _shutdown_worker():
-    """
-    Close the open gRPC channel.
-
-    Returns:
-        None
-
-    """
-    if _worker_channel_singleton is not None:
-        _worker_channel_singleton.stop()
-
 
 @DATASET_REGISTRY.register()
 class Kinetics(torch.utils.data.Dataset):
@@ -154,85 +131,17 @@ class Kinetics(torch.utils.data.Dataset):
                 elif len(fetch_info) == 1:
                     path, label = fetch_info[0], 0
                 else:
-                    raise RuntimeError(
-                        "Failed to parse video fetch {} info {} retries.".format(path_to_file, fetch_info)
-                    )
+                    raise RuntimeError("Failed to parse video fetch {} info {} retries.".format(path_to_file, fetch_info))
                 for idx in range(self._num_clips):
                     self._path_to_videos.append(os.path.join(self.cfg.DATA.PATH_PREFIX, path))
                     # self._labels.append(label)
                     self._labels.append(int(label))
                     self._spatial_temporal_idx.append(idx)
                     self._video_meta[clip_idx * self._num_clips + idx] = {}
-        assert len(self._path_to_videos) > 0, "Failed to load Kinetics split {} from {}".format(
-            self._split_idx, path_to_file
-        )
+        assert len(self._path_to_videos) > 0, "Failed to load Kinetics split {} from {}".format(self._split_idx, path_to_file)
         logger.info(
-            "Constructing kinetics dataloader (size: {} skip_rows {}) from {} ".format(
-                len(self._path_to_videos), self.skip_rows, path_to_file
-            )
+            "Constructing kinetics dataloader (size: {} skip_rows {}) from {} ".format(len(self._path_to_videos), self.skip_rows, path_to_file)
         )
-        server_address = "143.248.53.54:50051"
-        global _worker_channel_singleton
-        global _worker_stub_singleton
-        _worker_channel_singleton = grpc.insecure_channel(
-            server_address,
-            options=[
-                ("grpc.max_send_message_length", -1),
-                ("grpc.max_receive_message_length", -1),
-                ("grpc.so_reuseport", 1),
-                ("grpc.use_local_subchannel_pool", 1),
-            ],
-        )
-        try:
-            logger.info("init workers")
-            _worker_stub_singleton = data_feed_pb2_grpc.DataFeedStub(_worker_channel_singleton)
-        except grpc.RpcError as e:
-            logger.error("Error creating stub: {}".format(e.details()))
-        else:
-            print("init done")
-        # print(type(_worker_channel_singleton)
-        # atexit.register(_shutdown_worker)
-
-    def _shutdown_worker():
-        """
-        Close the open gRPC channel.
-
-        Returns:
-            None
-
-        """
-        if _worker_channel_singleton is not None:
-            _worker_channel_singleton.stop()
-
-    def _run_worker_query(self, get_tuple: tuple) -> str:
-        """
-        Execute the call to the gRPC server.
-        Args:
-        Returns:
-        """
-        index, imgname = get_tuple
-        # print(f"send {imgname}, ", end="")
-
-        response: data_feed_pb2.Sample = _worker_stub_singleton.get_sample(
-            data_feed_pb2.Config(index=index, filename=imgname)
-        )
-
-        num_fr, size_fr = response.num_fr, response.size_fr
-
-        if num_fr == 1:
-            return None, None, None
-        reconstruction = (num_fr, size_fr, size_fr, 3)
-        frame1 = np.frombuffer(response.frames.frame1, dtype=np.uint8).reshape(reconstruction)
-        frame2 = np.frombuffer(response.frames.frame1, dtype=np.uint8).reshape(reconstruction)
-        # print(f"received frame: {frame1}")
-
-        # print(list(response.st_times.st_time1))
-
-        frames = [torch.as_tensor(frame1.copy()), torch.as_tensor(frame2.copy())]
-        st_time = np.array([np.array(response.st_times.st_time1), np.array(response.st_times.st_time2)])
-        tdiff = np.array([np.array(response.tdiffs.tdiff1), np.array(response.tdiffs.tdiff2)])
-
-        return frames, st_time, tdiff
 
     def _set_epoch_num(self, epoch):
         self.epoch = epoch
@@ -284,9 +193,7 @@ class Kinetics(torch.utils.data.Dataset):
             max_scale = self.cfg.DATA.TRAIN_JITTER_SCALES[1]
             crop_size = self.cfg.DATA.TRAIN_CROP_SIZE
             if short_cycle_idx in [0, 1]:
-                crop_size = int(
-                    round(self.cfg.MULTIGRID.SHORT_CYCLE_FACTORS[short_cycle_idx] * self.cfg.MULTIGRID.DEFAULT_S)
-                )
+                crop_size = int(round(self.cfg.MULTIGRID.SHORT_CYCLE_FACTORS[short_cycle_idx] * self.cfg.MULTIGRID.DEFAULT_S))
             if self.cfg.MULTIGRID.DEFAULT_S > 0:
                 # Decreasing the scale is equivalent to using a larger "span"
                 # in a sampling grid.
@@ -296,11 +203,7 @@ class Kinetics(torch.utils.data.Dataset):
             # spatial_sample_index is in [0, 1, 2]. Corresponding to left,
             # center, or right if width is larger than height, and top, middle,
             # or bottom if height is larger than width.
-            spatial_sample_index = (
-                (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS)
-                if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
-                else 1
-            )
+            spatial_sample_index = (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS) if self.cfg.TEST.NUM_SPATIAL_CROPS > 1 else 1
             min_scale, max_scale, crop_size = (
                 [self.cfg.DATA.TEST_CROP_SIZE] * 3
                 if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
@@ -325,33 +228,88 @@ class Kinetics(torch.utils.data.Dataset):
         # Try to decode and sample a clip from a video. If the video can not be
         # decoded, repeatly find a random video replacement that can be decoded.
 
-        for i_try in range(2):
+        for i_try in range(self._num_retries):
+            video_container = None
+            try:
+                video_container = container.get_video_container(
+                    self._path_to_videos[index],
+                    self.cfg.DATA_LOADER.ENABLE_MULTI_THREAD_DECODE,
+                    self.cfg.DATA.DECODING_BACKEND,
+                )
+            except Exception as e:
+                logger.info("Failed to load video from {} with error {}".format(self._path_to_videos[index], e))
+                if self.mode not in ["test"]:
+                    # let's try another one
+                    index = random.randint(0, len(self._path_to_videos) - 1)
+                continue  # Select a random video if the current video was not able to access.
+            if video_container is None:
+                logger.warning("Failed to meta load video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
+                if self.mode not in ["test"] and i_try > self._num_retries // 8:
+                    # let's try another one
+                    index = random.randint(0, len(self._path_to_videos) - 1)
+                continue
+
             frames_decoded, time_idx_decoded = (
                 [None] * num_decode,
                 [None] * num_decode,
             )
-            # get video frames and information from server
-            filename = self._path_to_videos[index]
-            filename = os.path.splitext(os.path.basename(filename))[0]
 
-            request_data = index, filename
-            frames, time_idx, tdiff = self._run_worker_query(request_data)
+            # for i in range(num_decode):
+            num_frames = [self.cfg.DATA.NUM_FRAMES]
+            sampling_rate = utils.get_random_sampling_rate(
+                self.cfg.MULTIGRID.LONG_CYCLE_SAMPLING_RATE,
+                self.cfg.DATA.SAMPLING_RATE,
+            )
+            sampling_rate = [sampling_rate]
+            if len(num_frames) < num_decode:
+                num_frames.extend([num_frames[-1] for i in range(num_decode - len(num_frames))])
+                # base case where keys have same frame-rate as query
+                sampling_rate.extend([sampling_rate[-1] for i in range(num_decode - len(sampling_rate))])
+            elif len(num_frames) > num_decode:
+                num_frames = num_frames[:num_decode]
+                sampling_rate = sampling_rate[:num_decode]
 
+            if self.mode in ["train"]:
+                assert len(min_scale) == len(max_scale) == len(crop_size) == num_decode
+
+            target_fps = self.cfg.DATA.TARGET_FPS
+            if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
+                target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
+
+            # Decode video. Meta info is used to perform selective decoding.
+            frames, time_idx, tdiff = decoder.decode(
+                video_container,
+                sampling_rate,
+                num_frames,
+                temporal_sample_index,
+                self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
+                video_meta=self._video_meta[index] if len(self._video_meta) < 5e6 else {},  # do not cache on huge datasets
+                target_fps=target_fps,
+                backend=self.cfg.DATA.DECODING_BACKEND,
+                use_offset=self.cfg.DATA.USE_OFFSET_SAMPLING,
+                max_spatial_scale=min_scale[0] if all(x == min_scale[0] for x in min_scale) else 0,  # if self.mode in ["test"] else 0,
+                time_diff_prob=self.p_convert_dt if self.mode in ["train"] else 0.0,
+                temporally_rnd_clips=True,
+                min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
+                max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
+            )
+            # print(frames[0].shape)
             frames_decoded = frames
             time_idx_decoded = time_idx
+            # print(time_idx_decoded)
+            # print(frames_decoded[0].shape, len(time_idx_decoded))
 
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
             if frames_decoded is None or None in frames_decoded:
-                logger.warning(
-                    "Failed to decode video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try)
-                )
+                logger.warning("Failed to decode video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
+                print(f"num_retries: {self._num_retries}")
                 index = random.randint(0, len(self._path_to_videos) - 1)
                 # if self.mode not in ["test"] and (i_try % (self._num_retries // 8)) == 0:
                 #     # let's try another one
                 #     index = random.randint(0, len(self._path_to_videos) - 1)
                 continue
-            # print(frames[0].shape, type(time_idx), time_idx.shape)
+                # print(os.getpid())
 
             num_aug = self.cfg.DATA.TRAIN_CROP_NUM_SPATIAL * self.cfg.AUG.NUM_SAMPLE if self.mode in ["train"] else 1
             num_out = num_aug * num_decode
@@ -359,7 +317,7 @@ class Kinetics(torch.utils.data.Dataset):
             idx = -1
             label = self._labels[index]
 
-            # # hong added below
+            # hong added below
             # if self.dummy_output is not None:
             #     return self.dummy_output
             for i in range(num_decode):

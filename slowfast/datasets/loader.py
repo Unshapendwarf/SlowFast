@@ -19,6 +19,7 @@ from . import utils as utils
 # from . import custom_dali as dali
 from .build import build_dataset
 
+
 # dali dataloader is here
 
 
@@ -71,8 +72,7 @@ def detection_collate(batch):
         if key == "boxes" or key == "ori_boxes":
             # Append idx info to the bboxes before concatenating them.
             bboxes = [
-                np.concatenate([np.full((data[i].shape[0], 1), float(i)), data[i]], axis=1)
-                for i in range(len(data))
+                np.concatenate([np.full((data[i].shape[0], 1), float(i)), data[i]], axis=1) for i in range(len(data))
             ]
             bboxes = np.concatenate(bboxes, axis=0)
             collated_extra_data[key] = torch.tensor(bboxes).float()
@@ -110,38 +110,32 @@ def construct_loader(cfg, split, is_precise_bn=False):
         shuffle = False
         drop_last = False
     elif split in ["memcheck"]:
-        split = "test"
+        split = "train"
         dataset_name = cfg.MEMCHECK.DATASET
         batch_size = int(cfg.MEMCHECK.BATCH_SIZE / max(1, cfg.NUM_GPUS))
         shuffle = False
         drop_last = False
 
-    # When cfg.DALI_ENABLE is True, loader should be the dali pipelined loader
-    if cfg.DALI_ENABLE:
-        assert cfg.NUM_GPUS <= 1, "DALI enabled when num_GPUs > 1"
-        print(split)
-        return
-
     # Construct the dataset
     dataset = build_dataset(dataset_name, cfg, split)
 
     if isinstance(dataset, torch.utils.data.IterableDataset):
+        print("helllo")
         loader = torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
-            num_workers=cfg.DATA_LOADER.NUM_WORKERS,
+            # num_workers=cfg.DATA_LOADER.NUM_WORKERS,
+            num_workers=4,
             pin_memory=cfg.DATA_LOADER.PIN_MEMORY,
             drop_last=drop_last,
             collate_fn=detection_collate if cfg.DETECTION.ENABLE else None,
-            worker_init_fn=utils.loader_worker_init_fn(dataset),
+            worker_init_fn=utils.loader_worker_init_fn(dataset, dataset_name),
         )
     else:
         if cfg.MULTIGRID.SHORT_CYCLE and split in ["train"] and not is_precise_bn:
             # Create a sampler for multi-process training
             sampler = utils.create_sampler(dataset, shuffle, cfg)
-            batch_sampler = ShortCycleBatchSampler(
-                sampler, batch_size=batch_size, drop_last=drop_last, cfg=cfg
-            )
+            batch_sampler = ShortCycleBatchSampler(sampler, batch_size=batch_size, drop_last=drop_last, cfg=cfg)
             # Create a loader
             loader = torch.utils.data.DataLoader(
                 dataset,
@@ -157,11 +151,7 @@ def construct_loader(cfg, split, is_precise_bn=False):
             if cfg.DETECTION.ENABLE:
                 collate_func = detection_collate
             elif (
-                (
-                    cfg.AUG.NUM_SAMPLE > 1
-                    or cfg.DATA.TRAIN_CROP_NUM_TEMPORAL > 1
-                    or cfg.DATA.TRAIN_CROP_NUM_SPATIAL > 1
-                )
+                (cfg.AUG.NUM_SAMPLE > 1 or cfg.DATA.TRAIN_CROP_NUM_TEMPORAL > 1 or cfg.DATA.TRAIN_CROP_NUM_SPATIAL > 1)
                 and split in ["train"]
                 and not cfg.MODEL.MODEL_NAME == "ContrastiveModel"
             ):
@@ -177,7 +167,7 @@ def construct_loader(cfg, split, is_precise_bn=False):
                 pin_memory=cfg.DATA_LOADER.PIN_MEMORY,
                 drop_last=drop_last,
                 collate_fn=collate_func,
-                worker_init_fn=utils.loader_worker_init_fn(dataset),
+                worker_init_fn=utils.loader_worker_init_fn(dataset, dataset_name),
             )
     return loader
 
@@ -196,13 +186,11 @@ def shuffle_dataset(loader, cur_epoch):
             raise RuntimeError("Unknown sampler for IterableDataset when shuffling dataset")
     else:
         sampler = (
-            loader.batch_sampler.sampler
-            if isinstance(loader.batch_sampler, ShortCycleBatchSampler)
-            else loader.sampler
+            loader.batch_sampler.sampler if isinstance(loader.batch_sampler, ShortCycleBatchSampler) else loader.sampler
         )
-    assert isinstance(
-        sampler, (RandomSampler, DistributedSampler)
-    ), "Sampler type '{}' not supported".format(type(sampler))
+    assert isinstance(sampler, (RandomSampler, DistributedSampler)), "Sampler type '{}' not supported".format(
+        type(sampler)
+    )
     # RandomSampler handles shuffling automatically
     if isinstance(sampler, DistributedSampler):
         # DistributedSampler shuffles data based on epoch
