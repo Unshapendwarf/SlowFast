@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+import sys  # for sys.getrefcount()
 
 import numpy as np
 import os
@@ -236,93 +237,97 @@ class Kinetics(torch.utils.data.Dataset):
                 [None] * num_decode,
             )
 
-            with nvtx.annotate("dec", color="red", domain="decode"):
-                video_container = None
-                try:
-                    video_container = container.get_video_container(
-                        self._path_to_videos[index],
-                        self.cfg.DATA_LOADER.ENABLE_MULTI_THREAD_DECODE,
-                        self.cfg.DATA.DECODING_BACKEND,
-                    )
-                except Exception as e:
-                    logger.info("Failed to load video from {} with error {}".format(self._path_to_videos[index], e))
-                    if self.mode not in ["test"]:
-                        # let's try another one
-                        index = random.randint(0, len(self._path_to_videos) - 1)
-                    continue  # Select a random video if the current video was not able to access.
-                if video_container is None:
-                    logger.warning("Failed to meta load video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
-                    if self.mode not in ["test"] and i_try > self._num_retries // 8:
-                        # let's try another one
-                        index = random.randint(0, len(self._path_to_videos) - 1)
-                    continue
-
-                # for i in range(num_decode):
-                num_frames = [self.cfg.DATA.NUM_FRAMES]
-                sampling_rate = utils.get_random_sampling_rate(
-                    self.cfg.MULTIGRID.LONG_CYCLE_SAMPLING_RATE,
-                    self.cfg.DATA.SAMPLING_RATE,
+            video_container = None
+            try:
+                video_container = container.get_video_container(
+                    self._path_to_videos[index],
+                    self.cfg.DATA_LOADER.ENABLE_MULTI_THREAD_DECODE,
+                    self.cfg.DATA.DECODING_BACKEND,
                 )
-                sampling_rate = [sampling_rate]
-                if len(num_frames) < num_decode:
-                    num_frames.extend([num_frames[-1] for i in range(num_decode - len(num_frames))])
-                    # base case where keys have same frame-rate as query
-                    sampling_rate.extend([sampling_rate[-1] for i in range(num_decode - len(sampling_rate))])
-                elif len(num_frames) > num_decode:
-                    num_frames = num_frames[:num_decode]
-                    sampling_rate = sampling_rate[:num_decode]
+            except Exception as e:
+                logger.info("Failed to load video from {} with error {}".format(self._path_to_videos[index], e))
+                if self.mode not in ["test"]:
+                    # let's try another one
+                    index = random.randint(0, len(self._path_to_videos) - 1)
+                continue  # Select a random video if the current video was not able to access.
+            if video_container is None:
+                logger.warning("Failed to meta load video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
+                if self.mode not in ["test"] and i_try > self._num_retries // 8:
+                    # let's try another one
+                    index = random.randint(0, len(self._path_to_videos) - 1)
+                continue
 
-                if self.mode in ["train"]:
-                    assert len(min_scale) == len(max_scale) == len(crop_size) == num_decode
+            # for i in range(num_decode):
+            num_frames = [self.cfg.DATA.NUM_FRAMES]
+            sampling_rate = utils.get_random_sampling_rate(
+                self.cfg.MULTIGRID.LONG_CYCLE_SAMPLING_RATE,
+                self.cfg.DATA.SAMPLING_RATE,
+            )
+            sampling_rate = [sampling_rate]
+            if len(num_frames) < num_decode:
+                num_frames.extend([num_frames[-1] for i in range(num_decode - len(num_frames))])
+                # base case where keys have same frame-rate as query
+                sampling_rate.extend([sampling_rate[-1] for i in range(num_decode - len(sampling_rate))])
+            elif len(num_frames) > num_decode:
+                num_frames = num_frames[:num_decode]
+                sampling_rate = sampling_rate[:num_decode]
 
-                target_fps = self.cfg.DATA.TARGET_FPS
-                if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
-                    target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
+            if self.mode in ["train"]:
+                assert len(min_scale) == len(max_scale) == len(crop_size) == num_decode
 
-                # cur_preview = self.cfg.NUM_PREVIEW
-                cur_preview = 4
+            target_fps = self.cfg.DATA.TARGET_FPS
+            if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
+                target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
 
-                if self._path_to_videos[index] not in self.frame_dict:
-                    # self.frame_dict[self._path_to_videos[index]] = frameInfo(path=self._path_to_videos[index], frames=[], times=[], diff_augs=[])
-                    self.frame_dict[self._path_to_videos[index]] = {"frames": [], "times": [], "diff_augs": []}
+            # cur_preview = self.cfg.NUM_PREVIEW
+            cur_preview = 4
 
-                # elif len(self.frame_dict[self._path_to_videos[index]]["frames"]) == 0:
-                #     # print("here")
-                #     # tmp_f = self.frame_dict[self._path_to_videos[index]]["frames"][:]
-                #     # tmp_t = self.frame_dict[self._path_to_videos[index]]["times"][:]
-                #     # tmp_d = self.frame_dict[self._path_to_videos[index]]["diff_augs"][:]
+            if self._path_to_videos[index] not in self.frame_dict:
+                # self.frame_dict[self._path_to_videos[index]] = frameInfo(path=self._path_to_videos[index], frames=[], times=[], diff_augs=[])
+                self.frame_dict[self._path_to_videos[index]] = {"frames": [], "times": [], "diff_augs": []}
 
-                #     # self.frame_dict[self._path_to_videos[index]] = None
-                #     del self.frame_dict[self._path_to_videos[index]]
-                #     # self.frame_dict[self._path_to_videos[index]] = {"frames": tmp_f, "times": tmp_t, "diff_augs": tmp_d}
-                #     self.frame_dict[self._path_to_videos[index]] = {"frames": [], "times": [], "diff_augs": []}
-                # print(os.getpid(), index, len(self.frame_dict[self._path_to_videos[index]]["frames"]), asizeof(self.frame_dict))
-                # for i_key, i_val in self.frame_dict.items():
-                #     print(i_key, asizeof(i_val))
+            # elif len(self.frame_dict[self._path_to_videos[index]]["frames"]) == 0:
+            #     # print("here")
+            #     # tmp_f = self.frame_dict[self._path_to_videos[index]]["frames"][:]
+            #     # tmp_t = self.frame_dict[self._path_to_videos[index]]["times"][:]
+            #     # tmp_d = self.frame_dict[self._path_to_videos[index]]["diff_augs"][:]
 
-                # Decode video. Meta info is used to perform selective decoding.
-                frames, time_idx, tdiff = decoder.enhanced_decode(
-                    video_container,
-                    sampling_rate,
-                    num_frames,
-                    temporal_sample_index,
-                    self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
-                    video_meta=self._video_meta[index] if len(self._video_meta) < 5e6 else {},  # do not cache on huge datasets
-                    target_fps=target_fps,
-                    backend=self.cfg.DATA.DECODING_BACKEND,
-                    use_offset=self.cfg.DATA.USE_OFFSET_SAMPLING,
-                    max_spatial_scale=min_scale[0] if all(x == min_scale[0] for x in min_scale) else 0,  # if self.mode in ["test"] else 0,
-                    time_diff_prob=self.p_convert_dt if self.mode in ["train"] else 0.0,
-                    temporally_rnd_clips=True,
-                    min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
-                    max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
-                    num_preview=cur_preview,
-                    frame_container=self.frame_dict[self._path_to_videos[index]],
-                )
-                frames_decoded = frames
-                time_idx_decoded = time_idx
+            #     # self.frame_dict[self._path_to_videos[index]] = None
+            #     del self.frame_dict[self._path_to_videos[index]]
+            #     # self.frame_dict[self._path_to_videos[index]] = {"frames": tmp_f, "times": tmp_t, "diff_augs": tmp_d}
+            #     self.frame_dict[self._path_to_videos[index]] = {"frames": [], "times": [], "diff_augs": []}
+            # print(os.getpid(), index, len(self.frame_dict[self._path_to_videos[index]]["frames"]), asizeof(self.frame_dict))
+            # for i_key, i_val in self.frame_dict.items():
+            #     print(i_key, asizeof(i_val))
 
-                # print(f"kinetics_custom.py/Kinetics/__getitem__: {frames_decoded[0].shape}, {len(frames_decoded)},{time_idx[0]}")
+            # Decode video. Meta info is used to perform selective decoding.
+            frames, time_idx, tdiff = decoder.enhanced_decode(
+                video_container,
+                sampling_rate,
+                num_frames,
+                temporal_sample_index,
+                self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
+                video_meta=self._video_meta[index] if len(self._video_meta) < 5e6 else {},  # do not cache on huge datasets
+                target_fps=target_fps,
+                backend=self.cfg.DATA.DECODING_BACKEND,
+                use_offset=self.cfg.DATA.USE_OFFSET_SAMPLING,
+                max_spatial_scale=min_scale[0] if all(x == min_scale[0] for x in min_scale) else 0,  # if self.mode in ["test"] else 0,
+                time_diff_prob=self.p_convert_dt if self.mode in ["train"] else 0.0,
+                temporally_rnd_clips=True,
+                min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
+                max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
+                num_preview=cur_preview,
+                frame_container=self.frame_dict[self._path_to_videos[index]],
+            )
+
+            video_container = None
+            del video_container
+            # check reference count sys.getrefcount
+            frames_decoded = frames
+            time_idx_decoded = time_idx
+            # print(f"frames: {sys.getrefcount(frames)} refcnt")
+
+            # print(f"kinetics_custom.py/Kinetics/__getitem__: {frames_decoded[0].shape}, {len(frames_decoded)},{time_idx[0]}")
 
             # print(f"kinetics_custom.py:time_idx_decoded:{time_idx_decoded}")
             # If decoding failed (wrong format, video is too short, and etc),
@@ -417,7 +422,12 @@ class Kinetics(torch.utils.data.Dataset):
                             mask = self._gen_mask()
                             f_out[idx] = f_out[idx] + [torch.Tensor(), mask]
 
+            frames_decoded = None
+            del frames_decoded
+            del frames
+
             frames = f_out[0] if num_out == 1 else f_out
+            print(f"frames: {sys.getrefcount(frames)} refcnt")
             time_idx = np.array(time_idx_out)
             if num_aug * num_decode > 1 and not self.cfg.MODEL.MODEL_NAME == "ContrastiveModel":
                 label = [label] * num_aug * num_decode

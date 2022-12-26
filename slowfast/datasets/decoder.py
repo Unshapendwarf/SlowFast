@@ -4,6 +4,7 @@
 import logging
 import math
 import random
+import sys
 
 import numpy as np
 import torch
@@ -671,6 +672,8 @@ def pyav_all_decode(
 
         frames = [frame.to_rgb().to_ndarray() for frame in video_frames]
         frames = torch.as_tensor(np.stack(frames))
+    # del video_frames
+    # print(frames.element_size() * frames.nelement() / 1028 / 1028)  # memory size in MB  --> print size
     frames_out = [frames]
 
     return frames_out, fps, decode_all_video, start_end_delta_time
@@ -803,13 +806,17 @@ def sub_decoder(
         ret_time = start_end_delta_time[:]
         ret_diff_aug = time_diff_aug[:]
         frames_out, start_end_delta_time, time_diff_aug = None, None, None
+
+        # reference check in here.
+
         # print(ret_frame)
         # frame_container.putInfo(ret_frame, ret_time, ret_diff_aug)
         frame_container["frames"].append(ret_frame)
         frame_container["times"].append(ret_time)
         frame_container["diff_augs"].append(ret_diff_aug)
+    del frames_decoded
 
-        # frame_container.putInfo(frames_out, start_end_delta_time, time_diff_aug)
+    # frame_container.putInfo(frames_out, start_end_delta_time, time_diff_aug)
 
 
 def enhanced_decode(
@@ -834,7 +841,7 @@ def enhanced_decode(
     if backend != "pyav":
         raise NotImplementedError("Only support pyav but given {} ".format(backend))
 
-    min_preview = 2  # min_preview is a threshold
+    min_preview = 4  # min_preview is a threshold
     frame_count = len(frame_container["frames"])
     t1_args = (
         container,
@@ -857,6 +864,7 @@ def enhanced_decode(
     if frame_count < min_preview:
         # run decoder
         # wait for decoder returns
+        # print("run subdecoder")
         t1 = threading.Thread(target=sub_decoder, args=t1_args)
         t1.start()
         t1.join()

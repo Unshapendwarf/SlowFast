@@ -41,31 +41,32 @@ def perform_check(mcheck_loader, cfg):
         return
     start_T = TT.time()
     for cur_iter, (inputs, labels, index, time, meta) in enumerate(mcheck_loader):
+        print(f"iter: {cur_iter}")
         end_T = TT.time()
         # print(f"iter{cur_iter}, time differene: {end_T-start_T}")
         start_T = end_T
         # Transfer the data to the current GPU device.
         # continue
-        if cfg.NUM_GPUS:
-            if isinstance(inputs, (list,)):
-                for i in range(len(inputs)):
-                    if isinstance(inputs[i], (list,)):
-                        for j in range(len(inputs[i])):
-                            inputs[i][j] = inputs[i][j].cuda(non_blocking=True)
-                    else:
-                        inputs[i] = inputs[i].cuda(non_blocking=True)
-            else:
-                inputs = inputs.cuda(non_blocking=True)
-            if not isinstance(labels, list):
-                labels = labels.cuda(non_blocking=True)
-                index = index.cuda(non_blocking=True)
-                time = time.cuda(non_blocking=True)
-            for key, val in meta.items():
-                if isinstance(val, (list,)):
-                    for i in range(len(val)):
-                        val[i] = val[i].cuda(non_blocking=True)
-                else:
-                    meta[key] = val.cuda(non_blocking=True)
+        # if cfg.NUM_GPUS:
+        #     if isinstance(inputs, (list,)):
+        #         for i in range(len(inputs)):
+        #             if isinstance(inputs[i], (list,)):
+        #                 for j in range(len(inputs[i])):
+        #                     inputs[i][j] = inputs[i][j].cuda(non_blocking=True)
+        #             else:
+        #                 inputs[i] = inputs[i].cuda(non_blocking=True)
+        #     else:
+        #         inputs = inputs.cuda(non_blocking=True)
+        #     if not isinstance(labels, list):
+        #         labels = labels.cuda(non_blocking=True)
+        #         index = index.cuda(non_blocking=True)
+        #         time = time.cuda(non_blocking=True)
+        #     for key, val in meta.items():
+        #         if isinstance(val, (list,)):
+        #             for i in range(len(val)):
+        #                 val[i] = val[i].cuda(non_blocking=True)
+        #         else:
+        #             meta[key] = val.cuda(non_blocking=True)
         # print(len(inputs))
         # print(inputs[0][0].shape)
         # print(labels.shape)
