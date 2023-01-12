@@ -4,17 +4,18 @@
 import logging
 import math
 import random
-import sys
+from typing import List, Optional
+
+# import sys
 
 import numpy as np
 import torch
 import torchvision.io as io
+from torch import Tensor
 
 from . import transform as transform
-from .frame_saver import frameInfo
-
+from .frame_saver import Qcontainer
 import threading
-import nvtx
 
 logger = logging.getLogger(__name__)
 
@@ -673,7 +674,7 @@ def pyav_all_decode(
         frames = [frame.to_rgb().to_ndarray() for frame in video_frames]
         frames = torch.as_tensor(np.stack(frames))
     # del video_frames
-    # print(frames.element_size() * frames.nelement() / 1028 / 1028)  # memory size in MB  --> print size
+    # print(frames.element_size() * frames.element() / 1028 / 1028)  # memory size in MB  --> print size
     frames_out = [frames]
 
     return frames_out, fps, decode_all_video, start_end_delta_time
@@ -693,13 +694,13 @@ def sub_decoder(
     min_delta=-math.inf,
     max_delta=math.inf,
     temporally_rnd_clips=True,
-    num_preview=4,
-    frame_container={"frames": [], "times": [], "diff_augs": []},
+    num_preview=1,
+    frame_container=Qcontainer("", 1),
 ):
     # print("decoder works")
     # only one decoder for enhanced one: PyAV
     # print(f"{num_frames}, {type(num_frames)}")  # num_frames : [8, 8]
-    assert clip_idx >= -1, "Not valied clip_idx {}".format(clip_idx)
+    assert clip_idx >= -1, "Not valid clip_idx {}".format(clip_idx)
     assert len(sampling_rate) == len(num_frames)
     num_decode = len(num_frames)  # num_decode==2 for "train"
     num_frames_orig = num_frames
@@ -727,27 +728,20 @@ def sub_decoder(
         )
     except Exception as e:
         print("Failed to decode with exception: {}".format(e))
-        # frame_container.putInfo(None, None, None)
-        frame_container["frames"].append(None)
-        frame_container["times"].append(None)
-        frame_container["diff_augs"].append(None)
+        frame_container.q_push(None, None, None)
 
     # Return None if the frames was not decoded successfully.
     if frames_decoded is None or None in frames_decoded:
-        # frame_container.putInfo(None, None, None)
-        frame_container["frames"].append(None)
-        frame_container["times"].append(None)
-        frame_container["diff_augs"].append(None)
+        frame_container.q_push(None, None, None)
 
     if not isinstance(frames_decoded, list):
         frames_decoded = [frames_decoded]
     num_decoded = len(frames_decoded)
     clip_sizes = [np.maximum(1.0, sampling_rate[i] * num_frames[i] / target_fps * fps) for i in range(len(sampling_rate))]
 
-    for i in range(num_preview):
+    for i_preview in range(num_preview):
         # print(f"num_preview: {i}/{num_preview}")
         if decode_all_video:  # full video was decoded (not trimmed yet)
-            # assert num_decoded == 1 and start_end_delta_time is None
             start_end_delta_time = get_multiple_start_end_idx(
                 frames_decoded[0].shape[0],
                 clip_sizes,
@@ -801,22 +795,21 @@ def sub_decoder(
             time_diff_aug = time_diff_aug_
             assert all(frames_out[i].shape[0] == num_frames_orig[i] for i in range(num_decode))
 
-        # copying for reducing RAM share
+        # copying for reducing RAM share (not sure)
         ret_frame = frames_out[:]
         ret_time = start_end_delta_time[:]
         ret_diff_aug = time_diff_aug[:]
         frames_out, start_end_delta_time, time_diff_aug = None, None, None
 
-        # reference check in here.
+        # thr first frame is not pushed in the queue
+        if i_preview == 0:
+            return ret_frame, ret_time, ret_diff_aug
+        else:
+            # put data to frame_container here
+            frame_container.q_push(ret_frame, ret_time, ret_diff_aug)
+            return None, None, None
 
-        # print(ret_frame)
-        # frame_container.putInfo(ret_frame, ret_time, ret_diff_aug)
-        frame_container["frames"].append(ret_frame)
-        frame_container["times"].append(ret_time)
-        frame_container["diff_augs"].append(ret_diff_aug)
-    del frames_decoded
-
-    # frame_container.putInfo(frames_out, start_end_delta_time, time_diff_aug)
+    # del frames_decoded
 
 
 def enhanced_decode(
@@ -835,14 +828,14 @@ def enhanced_decode(
     min_delta=-math.inf,
     max_delta=math.inf,
     temporally_rnd_clips=True,
-    num_preview=4,
-    frame_container={"frames": [], "times": [], "diff_augs": []},
+    num_preview=0,
+    frame_container=Qcontainer("", 1),
 ):
     if backend != "pyav":
         raise NotImplementedError("Only support pyav but given {} ".format(backend))
 
-    min_preview = 4  # min_preview is a threshold
-    frame_count = len(frame_container["frames"])
+    min_preview = 2  # min_preview is a threshold
+    frame_count = frame_container.get_len()
     t1_args = (
         container,
         sampling_rate,
@@ -857,14 +850,13 @@ def enhanced_decode(
         min_delta,
         max_delta,
         temporally_rnd_clips,
-        num_preview,
+        max(num_preview, 1),
         frame_container,
     )
 
     if frame_count < min_preview:
         # run decoder
         # wait for decoder returns
-        # print("run subdecoder")
         t1 = threading.Thread(target=sub_decoder, args=t1_args)
         t1.start()
         t1.join()
@@ -877,13 +869,8 @@ def enhanced_decode(
         t1.start()
         # t1.join()
 
-    else:
-        None
-        # print("use predecoded batches")
-
-    # frames_out, start_end_delta_time, time_diff_aug = frame_container.popInfo()
-    frames_out = frame_container["frames"].pop(0)
-    start_end_delta_time = frame_container["times"].pop(0)
-    time_diff_aug = frame_container["diff_augs"].pop(0)
-
+    # frames_out = None
+    # start_end_delta_time = None
+    # time_diff_aug = None
+    frames_out, start_end_delta_time, time_diff_aug = frame_container.q_pop()
     return frames_out, start_end_delta_time, time_diff_aug
