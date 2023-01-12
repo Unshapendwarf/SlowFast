@@ -32,15 +32,17 @@ from PIL import Image
 # 아래 frameMan 을 queue에 넣고 그 queue를 dictionary의 value가 되게 해야함
 # Qcontainer는 queue object안에 한 iteration 에 필요한 데이터를 push한다
 
+
 class Qcontainer:
     # __slots__ = ["videopath", "frames", "times", "diff_augs"]
     # queue with thread safe queue which uses lock for thread-safe
-    __slots__ = ["video_name", "data_queue", "num_preview", "q_length"]
+    __slots__ = ["video_name", "data_queue", "q_length", "index"]
 
     def __init__(self, video_name: str, num_preview: int = 1):
         self.video_name = video_name
         self.data_queue = Queue(maxsize=num_preview*2)
         self.q_length = 0
+        self.index = 0
 
     def q_pop(self):
         # pop data from dataQueue, get the image or run the decoding procedure
@@ -70,7 +72,6 @@ class Qcontainer:
         # frame handling procedure: 
         # crop frames
         # save stitched images
-
         images = []
         save_name = f"some saving name"
         # consideration: you need to think about the none frames
@@ -84,6 +85,7 @@ class Qcontainer:
 
         # self.glen update
         self.q_length = self.data_queue.qsize()  # or self.qlen += 1
+        self.index += 1
 
     def get_len(self):
         return self.q_length

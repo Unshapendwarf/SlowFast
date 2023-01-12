@@ -15,10 +15,10 @@ TRAIN:
 TEST:
   ENABLE: False
   DATASET: kinetics
-  BATCH_SIZE: 16
+  BATCH_SIZE: 4
 DATA_LOADER:
-  NUM_WORKERS: 4
-  PIN_MEMORY: False
+  NUM_WORKERS: 0
+  PIN_MEMORY: True
 MODEL:
   NUM_CLASSES: 256
   MODEL_NAME: ContrastiveModel
@@ -42,7 +42,7 @@ CONTRASTIVE:
   PREDICTOR_DEPTHS: [2]
   # KNN_ON: False
 DATA:
-  PATH_TO_DATA_DIR: "/home/hong/slowfast/index_files"
+  PATH_TO_DATA_DIR: "/tmp/pycharm_project_535/index_files"
   DUMMY_LOAD: False
   NUM_FRAMES: 8
   SAMPLING_RATE: 8

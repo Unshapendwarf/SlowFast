@@ -696,7 +696,7 @@ def sub_decoder(
     temporally_rnd_clips=True,
     num_preview=1,
     frame_container=Qcontainer("", 1),
-):
+)-> list:
     # print("decoder works")
     # only one decoder for enhanced one: PyAV
     # print(f"{num_frames}, {type(num_frames)}")  # num_frames : [8, 8]
@@ -711,6 +711,8 @@ def sub_decoder(
         num_frames = [num_frames[i] for i in ind_clips]
     else:
         ind_clips = np.arange(num_decode)  # clips come temporally ordered from decoder
+
+    frames_decoded, fps, decode_all_video, start_end_delta_time = None, None, None, None
     try:
         assert min_delta == -math.inf and max_delta == math.inf, "delta sampling not supported in pyav"
         frames_decoded, fps, decode_all_video, start_end_delta_time = pyav_all_decode(
@@ -739,6 +741,7 @@ def sub_decoder(
     num_decoded = len(frames_decoded)
     clip_sizes = [np.maximum(1.0, sampling_rate[i] * num_frames[i] / target_fps * fps) for i in range(len(sampling_rate))]
 
+    preview_list = []
     for i_preview in range(num_preview):
         # print(f"num_preview: {i}/{num_preview}")
         if decode_all_video:  # full video was decoded (not trimmed yet)
@@ -801,14 +804,9 @@ def sub_decoder(
         ret_diff_aug = time_diff_aug[:]
         frames_out, start_end_delta_time, time_diff_aug = None, None, None
 
-        # thr first frame is not pushed in the queue
-        if i_preview == 0:
-            return ret_frame, ret_time, ret_diff_aug
-        else:
-            # put data to frame_container here
-            frame_container.q_push(ret_frame, ret_time, ret_diff_aug)
-            return None, None, None
-
+        preview_list.append([ret_frame, ret_time, ret_diff_aug])
+    print(f"type {len(preview_list[0])}")
+    return preview_list
     # del frames_decoded
 
 
@@ -854,23 +852,22 @@ def enhanced_decode(
         frame_container,
     )
 
-    if frame_count < min_preview:
-        # run decoder
-        # wait for decoder returns
+    # init status 를 알려줄 거는?
+    if frame_count == 0:
         t1 = threading.Thread(target=sub_decoder, args=t1_args)
         t1.start()
-        t1.join()
+        ret_list = t1.join()
 
     elif frame_count == min_preview:
-        # run decoder
-        # No need to wait decoder returns
-        # print(f"decode again")
         t1 = threading.Thread(target=sub_decoder, args=t1_args)
         t1.start()
-        # t1.join()
+        ret_list = t1.join()
+    else:
+        ret_list = []
 
-    # frames_out = None
-    # start_end_delta_time = None
-    # time_diff_aug = None
-    frames_out, start_end_delta_time, time_diff_aug = frame_container.q_pop()
-    return frames_out, start_end_delta_time, time_diff_aug
+    for i, i_list in enumerate(ret_list):
+        if i == 0:
+            return i_list[0], i_list[1], i_list[2]
+
+    # frames_out, start_end_delta_time, time_diff_aug = frame_container.q_pop()
+    # return frames_out, start_end_delta_time, time_diff_aug

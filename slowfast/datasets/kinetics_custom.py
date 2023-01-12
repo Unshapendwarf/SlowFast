@@ -312,7 +312,6 @@ class Kinetics(torch.utils.data.Dataset):
             time_idx_decoded = time_idx
 
             # print(f"kinetics_custom.py/Kinetics/__getitem__: {frames_decoded[0].shape}, {len(frames_decoded)},{time_idx[0]}")
-
             # print(f"kinetics_custom.py:time_idx_decoded:{time_idx_decoded}")
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
