@@ -2,6 +2,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 
 import queue
+
 import cv2
 import torch
 from detectron2 import model_zoo

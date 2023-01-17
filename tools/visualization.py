@@ -3,6 +3,7 @@
 
 import numpy as np
 import pickle
+
 import torch
 import tqdm
 
@@ -17,10 +18,7 @@ from slowfast.models import build_model
 from slowfast.utils.env import pathmgr
 from slowfast.visualization.gradcam_utils import GradCAM
 from slowfast.visualization.prediction_vis import WrongPredictionVis
-from slowfast.visualization.utils import (
-    GetWeightAndActivation,
-    process_layer_index_data,
-)
+from slowfast.visualization.utils import GetWeightAndActivation, process_layer_index_data
 from slowfast.visualization.video_visualizer import VideoVisualizer
 
 logger = logging.get_logger(__name__)

@@ -4,13 +4,11 @@
 """BatchNorm (BN) utility functions and custom batch-size BN implementations"""
 
 from functools import partial
+
 import torch
 import torch.nn as nn
 
-from pytorchvideo.layers.batch_norm import (
-    NaiveSyncBatchNorm1d,
-    NaiveSyncBatchNorm3d,
-)  # noqa
+from pytorchvideo.layers.batch_norm import NaiveSyncBatchNorm1d, NaiveSyncBatchNorm3d  # noqa
 
 
 def get_norm(cfg):

@@ -2,6 +2,7 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 
 import numpy as np
+
 import torch
 
 import slowfast.datasets.utils as data_utils

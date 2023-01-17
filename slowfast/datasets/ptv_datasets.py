@@ -3,35 +3,20 @@
 import functools
 import os
 from typing import Dict
+
 import torch
-from torch.utils.data import (
-    DistributedSampler,
-    RandomSampler,
-    SequentialSampler,
-)
+from torch.utils.data import DistributedSampler, RandomSampler, SequentialSampler
 from torchvision.transforms import Compose, Lambda
 from torchvision.transforms._transforms_video import (
-    NormalizeVideo,
-    RandomCropVideo,
-    RandomHorizontalFlipVideo,
-)
+    NormalizeVideo, RandomCropVideo, RandomHorizontalFlipVideo)
 
 import slowfast.utils.logging as logging
 
-from pytorchvideo.data import (
-    Charades,
-    LabeledVideoDataset,
-    SSv2,
-    make_clip_sampler,
-)
+from pytorchvideo.data import Charades, LabeledVideoDataset, SSv2, make_clip_sampler
 from pytorchvideo.data.labeled_video_paths import LabeledVideoPaths
 from pytorchvideo.transforms import (
-    ApplyTransformToKey,
-    RandomShortSideScale,
-    ShortSideScale,
-    UniformCropVideo,
-    UniformTemporalSubsample,
-)
+    ApplyTransformToKey, RandomShortSideScale, ShortSideScale, UniformCropVideo,
+    UniformTemporalSubsample)
 
 from . import utils as utils
 from .build import DATASET_REGISTRY

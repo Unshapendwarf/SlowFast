@@ -6,6 +6,8 @@
 import math
 import numpy as np
 import pprint
+import time as TT
+
 import torch
 from fvcore.nn.precise_bn import get_bn_modules, update_bn_stats
 
@@ -20,15 +22,11 @@ import slowfast.visualization.tensorboard_vis as tb
 from slowfast.datasets import loader
 from slowfast.datasets.mixup import MixUp
 from slowfast.models import build_model
-from slowfast.models.contrastive import (
-    contrastive_forward,
-    contrastive_parameter_surgery,
-)
+from slowfast.models.contrastive import contrastive_forward, contrastive_parameter_surgery
 from slowfast.utils.meters import AVAMeter, EpochTimer, TrainMeter, ValMeter
 from slowfast.utils.multigrid import MultigridSchedule
 
 import nvtx
-import time as TT
 
 logger = logging.get_logger(__name__)
 

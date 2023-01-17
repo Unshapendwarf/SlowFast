@@ -4,6 +4,7 @@
 import itertools
 import logging as log
 import numpy as np
+
 import matplotlib.pyplot as plt
 import torch
 from detectron2.utils.visualizer import Visualizer

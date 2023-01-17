@@ -5,6 +5,7 @@ Functions for benchmarks.
 
 import numpy as np
 import pprint
+
 import torch
 import tqdm
 from fvcore.common.timer import Timer

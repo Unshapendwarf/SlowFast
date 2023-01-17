@@ -15,6 +15,7 @@
 
 """Functions for computing metrics like precision, recall, CorLoc and etc."""
 from __future__ import division
+
 import numpy as np
 
 

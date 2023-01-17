@@ -6,6 +6,7 @@ import copy
 import queue
 import threading
 import time
+
 import cv2
 
 import slowfast.utils.logging as logging

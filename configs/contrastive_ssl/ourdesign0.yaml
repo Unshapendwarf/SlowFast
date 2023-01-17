@@ -2,7 +2,7 @@ TASK: ssl
 MEMCHECK:
   ENABLE: True
   DATASET: kinetics
-  BATCH_SIZE: 8
+  BATCH_SIZE: 4
 TRAIN:
   ENABLE: False
   DATASET: kinetics
@@ -11,7 +11,7 @@ TRAIN:
   CHECKPOINT_ENABLE: False
   CHECKPOINT_PERIOD: 20
   AUTO_RESUME: True
-  BATCH_SIZE: 16
+  BATCH_SIZE: 8
 TEST:
   ENABLE: False
   DATASET: kinetics
@@ -42,7 +42,8 @@ CONTRASTIVE:
   PREDICTOR_DEPTHS: [2]
   # KNN_ON: False
 DATA:
-  PATH_TO_DATA_DIR: "/tmp/pycharm_project_535/index_files"
+  PATH_TO_DATA_DIR: "/home/hong/slowfast/index_files"
+  # PATH_TO_DATA_DIR: "/tmp/pycharm_project_535/index_files"
   DUMMY_LOAD: False
   NUM_FRAMES: 8
   SAMPLING_RATE: 8
@@ -75,7 +76,7 @@ SOLVER:
   LARS_ON: True
   BASE_LR_SCALE_NUM_SHARDS: True
   LR_POLICY: cosine
-  MAX_EPOCH: 30
+  MAX_EPOCH: 2
   MOMENTUM: 0.9
   WEIGHT_DECAY: 1e-6
   WARMUP_EPOCHS: 35.0

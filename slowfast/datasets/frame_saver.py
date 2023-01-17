@@ -1,84 +1,54 @@
-import sys
+import os
+from queue import Queue
 import torch
 import torch.utils.data
 import torchvision.transforms as transforms
-
-from queue import Queue
-from torchvision.utils import save_image, make_grid
+from .transform import random_crop
 from PIL import Image
-
-'''
-    2022-01-09 implementing
-    dictionary-> png로 할껀데 이제 한 iteration에 16장이 필요라고 설정(8*2 for one video)
-    ordered picture cropping 이 필요할듯
-    augmentation except crop -> 이거는 나중에 load하고 해보는걸로
-
-    정할 거:
-        group policy -> preview_epoch 수 많큼 저장하는걸로 하고 (8*2*previewnum)
-    data:
-        saved_path: epoch-videopath-
-        saved_order
-        frame infos: start-end time, tdiff
-    ---
-    Where data is stored
-    - frames: ssd
-    - start-end time: RAM
-    - tdiff: RAM
-
-    no problem with the RAM size?
-    
-'''
-# 아래 frameMan 을 가지고 정리하는 dictionary가 필요하다 -> kinetics_custom에서 만들어서 사용하면 될듯
-# 아래 frameMan 을 queue에 넣고 그 queue를 dictionary의 value가 되게 해야함
-# Qcontainer는 queue object안에 한 iteration 에 필요한 데이터를 push한다
+from torchvision.utils import make_grid, save_image
 
 
-class Qcontainer:
-    # __slots__ = ["videopath", "frames", "times", "diff_augs"]
+class BaseContainer:
     # queue with thread safe queue which uses lock for thread-safe
-    __slots__ = ["video_name", "data_queue", "q_length", "index"]
+    __slots__ = ["video_name", "data_queue", "q_length", "crop_size", "index"]
 
     def __init__(self, video_name: str, num_preview: int = 1):
         self.video_name = video_name
         self.data_queue = Queue(maxsize=num_preview*2)
-        self.q_length = 0
         self.index = 0
+        self.crop_size = (96, 96)  # (height, weight)
+        self.q_length = 0
+
+    def cropper(self, frame):
+        frame = frame.permute(3, 0, 1, 2)  # T H W C -> C T H W.
+        frame, _ = random_crop(frame, self.crop_size[0])
+        frame = frame.permute(1, 0, 2, 3)  # C T H W -> T C H W.
+        return frame
+        # randomly crop the frames and return it
+
+    def get_len(self):
+        return self.q_length
+
+
+class ContainerRAM(BaseContainer):
+    __slots__ = ()
+
+    def __init__(self, video_name: str, num_preview: int = 1):
+        super().__init__(video_name, num_preview)
 
     def q_pop(self):
         # pop data from dataQueue, get the image or run the decoding procedure
-        # read png file from Storage
         if self.data_queue.empty():
-            print(f"the Queue is empty")
+            print(f"the Queue is empty, nothing to Pop()")
             return
         else:
-            frame_paths, start_end_times, tdiff = self.data_queue.get() # expected outputs are in 3 ways
-
-        # if queue is empty
-        # load PNG images as PIL images
-        frames = []
-        for path in frame_paths:
-            img = Image.open(path)
-            # images are already cropped here
-            frames.append(img)
-            # no channel processing for this? 
-        
-        # ?? new thread를 만들어서 그때 data가 삭제가 안되서 돌아가는건가? 이거는 확인해봐야지
-        # -> 그런데 이거는 문제가 안되는게 동시에 push 해서 order가 꼬이는 상황을 막기 위한 lock일건데 
-        #    나 같은 경우는 각 queue마다 한개의 decoding process가 실행되는거라서 의미 없다
-        frame = None
-        return frame
+            frames, start_end_times, tdiff = self.data_queue.get()  # expected outputs are in 3 ways
+            return frames, start_end_times, tdiff
 
     def q_push(self, input1, input2, input3):
-        # frame handling procedure: 
-        # crop frames
-        # save stitched images
-        images = []
-        save_name = f"some saving name"
-        # consideration: you need to think about the none frames
-        stitched_img = make_grid(images, padding=0)
-        save_image(stitched_img, save_name)
-        
-        # we will put list of list as a queue element 
+        # frame handling procedure:
+
+        # we will put list of list as a queue element
         # save cropped frames as png in SSD
         # push save-path, start-end time, tdiff in dataQueue
         self.data_queue.put(None)  # put above data, what is the format? listed data?
@@ -87,5 +57,64 @@ class Qcontainer:
         self.q_length = self.data_queue.qsize()  # or self.qlen += 1
         self.index += 1
 
-    def get_len(self):
-        return self.q_length
+
+class ContainerSSD(BaseContainer):
+    __slots__ = ["storage_path"]
+
+    def __init__(self, video_name: str, num_preview: int = 1):
+        super().__init__(video_name, num_preview)
+        self.storage_path = "/ssd/hong/slow_png_storage"  # storage path for goguma6
+
+    def q_pop(self):
+        # pop data from dataQueue, get the image or run the decoding procedure
+        # read png file from Storage
+        if self.data_queue.empty():
+            print(f"the Queue is empty, nothing to Pop()")
+            return
+        else:
+            save_path1, save_path2, start_end_times, tdiff = self.data_queue.get()  # expected outputs are in 3 ways
+        
+        # load PNG images as PIL images
+        frames = []
+        
+        stitched1 = Image.open(save_path1)
+        stitched2 = Image.open(save_path2)
+        
+        ######## you should start from here. this is cropping for temporal frames
+        ######## 2023-01-16
+        
+        # cropped1 = stitched1.crop(self.index+)
+        # images are already cropped here
+        frames.append()
+        # no channel processing for this?
+
+        frame = None
+        return frame
+
+    def q_push(self, raw_frames, st_end_time, tdiff):
+        '''
+        raw_frames: raw_frames from pyav decoder
+        st_end_time: frame start-end time
+        tdiff: time difference
+        
+        '''
+        # randomly crop the frames
+        cropped_1 = self.cropper(raw_frames[0])
+        cropped_2 = self.cropper(raw_frames[1])
+        
+        save_name = self.video_name + f"_{self.index}"
+        save_path1 = os.path.join(self.storage_path, "bb", save_name)
+        save_path2 = os.path.join(self.storage_path, "bb", save_name)
+        
+        # cropped_1 & cropped_2 are in form of "T C H W"
+        stitched_img1 = make_grid(cropped_1, padding=0)
+        stitched_img2 = make_grid(cropped_2, padding=0)
+        save_image(stitched_img1, save_path1)
+        save_image(stitched_img2, save_path2)
+
+        # push save-path, start-end time, tdiff in dataQueue
+        self.data_queue.put((save_path1, save_path2, st_end_time, tdiff))  # put above data, what is the format? listed data?
+
+        # self.qlen update
+        self.q_length = self.data_queue.qsize()  # or self.qlen += 1
+        self.index += 1

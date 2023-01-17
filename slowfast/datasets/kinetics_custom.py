@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
-import sys  # for sys.getrefcount()
-
 import numpy as np
 import os
 import random
+import sys  # for sys.getrefcount()
+
 import pandas
 import torch
 import torch.utils.data
@@ -14,21 +14,19 @@ import slowfast.utils.logging as logging
 from slowfast.utils.env import pathmgr
 
 import nvtx
-# from pympler.asizeof import asizeof
 
 from . import decoder as decoder
 from . import transform as transform
 from . import utils as utils
 from . import video_container as container
 from .build import DATASET_REGISTRY
+from .frame_saver import ContainerSSD
 from .random_erasing import RandomErasing
-from .transform import (
-    MaskingGenerator,
-    MaskingGenerator3D,
-    create_random_augment,
-)
+from .transform import MaskingGenerator, MaskingGenerator3D, create_random_augment
 
-from .frame_saver import Qcontainer
+# from pympler.asizeof import asizeof
+
+
 
 logger = logging.get_logger(__name__)
 
@@ -230,7 +228,7 @@ class Kinetics(torch.utils.data.Dataset):
             assert self.mode in ["train", "val"]
         # Try to decode and sample a clip from a video. If the video can not be
         # decoded, repeatly find a random video replacement that can be decoded.
-
+        
         for i_try in range(self._num_retries):
             frames_decoded, time_idx_decoded = (
                 [None] * num_decode,
@@ -246,9 +244,11 @@ class Kinetics(torch.utils.data.Dataset):
                 )
             except Exception as e:
                 logger.info("Failed to load video from {} with error {}".format(self._path_to_videos[index], e))
+                print(f"index is {index}")
                 if self.mode not in ["test"]:
                     # let's try another one
                     index = random.randint(0, len(self._path_to_videos) - 1)
+                    print(f"new index is {index}")
                 continue  # Select a random video if the current video was not able to access.
             if video_container is None:
                 logger.warning("Failed to meta load video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
@@ -282,7 +282,7 @@ class Kinetics(torch.utils.data.Dataset):
             # cur_preview = self.cfg.NUM_PREVIEW
             cur_preview = 1 # if cur_preview is 0 or 1, there is no preview frame
             if self._path_to_videos[index] not in self.frame_dict:
-                self.frame_dict[self._path_to_videos[index]] = Qcontainer(self._path_to_videos[index], cur_preview)
+                self.frame_dict[self._path_to_videos[index]] = ContainerSSD(self._path_to_videos[index], cur_preview)
             print(f"length of dictionary: {len(self.frame_dict)}")
 
             # Decode video. Meta info is used to perform selective decoding.
@@ -311,7 +311,7 @@ class Kinetics(torch.utils.data.Dataset):
             frames_decoded = frames
             time_idx_decoded = time_idx
 
-            # print(f"kinetics_custom.py/Kinetics/__getitem__: {frames_decoded[0].shape}, {len(frames_decoded)},{time_idx[0]}")
+            print(f"kinetics_custom.py/Kinetics/__getitem__: {frames_decoded[0].shape}, {len(frames_decoded)},{time_idx[0]}")
             # print(f"kinetics_custom.py:time_idx_decoded:{time_idx_decoded}")
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
@@ -338,6 +338,9 @@ class Kinetics(torch.utils.data.Dataset):
 
                     f_out[idx] = f_out[idx].float()
                     f_out[idx] = f_out[idx] / 255.0
+                    
+                    print(f"f_out init {f_out[idx].shape}")
+                    # f_out[idx]: T H W C
 
                     if self.mode in ["train"] and self.cfg.DATA.SSL_COLOR_JITTER:
                         f_out[idx] = transform.color_jitter_video_ssl(
@@ -375,7 +378,10 @@ class Kinetics(torch.utils.data.Dataset):
                     )
                     relative_scales = None if (self.mode not in ["train"] or len(scl) == 0) else scl
                     relative_aspect = None if (self.mode not in ["train"] or len(asp) == 0) else asp
-
+                    
+                    print(f"f_out shape: {f_out[idx].shape}")
+                    # f_out[idx]: C T H W
+                    
                     f_out[idx] = utils.spatial_sampling(
                         f_out[idx],
                         spatial_idx=spatial_sample_index,
@@ -388,6 +394,8 @@ class Kinetics(torch.utils.data.Dataset):
                         scale=relative_scales,
                         motion_shift=self.cfg.DATA.TRAIN_JITTER_MOTION_SHIFT if self.mode in ["train"] else False,
                     )
+                    print(f"f_out cropped: {f_out[idx].shape}")
+                    # f_out[idx]: C T H W
 
                     if self.rand_erase:
                         erase_transform = RandomErasing(
@@ -409,7 +417,7 @@ class Kinetics(torch.utils.data.Dataset):
             del frames
 
             frames = f_out[0] if num_out == 1 else f_out
-            print(f"frames: {sys.getrefcount(frames)} refcnt")
+            # print(f"frames: {sys.getrefcount(frames)} refcnt")
             time_idx = np.array(time_idx_out)
             if num_aug * num_decode > 1 and not self.cfg.MODEL.MODEL_NAME == "ContrastiveModel":
                 label = [label] * num_aug * num_decode

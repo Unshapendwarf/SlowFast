@@ -3,14 +3,13 @@
 
 import numpy as np
 import time
+
 import torch
 import tqdm
 
 from slowfast.utils import logging
 from slowfast.visualization.async_predictor import AsyncDemo, AsyncVis
-from slowfast.visualization.ava_demo_precomputed_boxes import (
-    AVAVisualizerWithPrecomputedBox,
-)
+from slowfast.visualization.ava_demo_precomputed_boxes import AVAVisualizerWithPrecomputedBox
 from slowfast.visualization.demo_loader import ThreadVideoManager, VideoManager
 from slowfast.visualization.predictor import ActionPredictor
 from slowfast.visualization.video_visualizer import VideoVisualizer

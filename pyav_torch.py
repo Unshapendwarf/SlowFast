@@ -1,17 +1,15 @@
 
-import os
-import av
-import torch
-import os
 import glob
+import multiprocessing
+import os
 import time
 import timeit
 
+import av
+import torch
 import torchvision.transforms as transforms
-from torchvision.utils import save_image as s_image
 from PIL import Image
-
-import multiprocessing
+from torchvision.utils import save_image as s_image
 
 
 def pyav_decode(filepath):

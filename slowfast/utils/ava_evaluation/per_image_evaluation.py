@@ -20,20 +20,11 @@ detection is supported by default.
 Based on the settings, per image evaluation is either performed on boxes or
 on object masks.
 """
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import numpy as np
 
-from . import (
-    np_box_list,
-    np_box_list_ops,
-    np_box_mask_list,
-    np_box_mask_list_ops,
-)
+from . import np_box_list, np_box_list_ops, np_box_mask_list, np_box_mask_list_ops
 
 
 class PerImageEvaluation(object):

@@ -5,6 +5,8 @@
 
 import numpy as np
 import os
+import time as TT
+
 import torch
 
 import slowfast.utils.distributed as du
@@ -13,7 +15,6 @@ import slowfast.utils.misc as misc
 from slowfast.datasets import loader
 
 logger = logging.get_logger(__name__)
-import time as TT
 
 
 @torch.no_grad()
@@ -67,9 +68,9 @@ def perform_check(mcheck_loader, cfg):
         #                 val[i] = val[i].cuda(non_blocking=True)
         #         else:
         #             meta[key] = val.cuda(non_blocking=True)
-        # print(len(inputs))
-        # print(inputs[0][0].shape)
-        # print(labels.shape)
+        print(len(inputs))
+        print(inputs[0][0].shape)
+        print(labels.shape)
         # print(index.shape)
         # print(time.shape)
     # print("one epoch done")

@@ -14,13 +14,10 @@
 # ==============================================================================
 """Label map utility functions."""
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import logging
+
 
 # from google.protobuf import text_format
 # from google3.third_party.tensorflow_models.object_detection.protos import string_int_label_map_pb2

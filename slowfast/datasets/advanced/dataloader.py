@@ -1,7 +1,9 @@
-from typing import Optional
-import torch
 import multiprocessing as mp
+from typing import Optional
+
+import torch
 from torch.utils.data.dataloader import DataLoader
+
 
 # https://github.com/pytorch/pytorch/issues/15849
 class _RepeatSampler(object):

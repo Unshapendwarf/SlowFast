@@ -1,5 +1,6 @@
-import os
 import glob
+import os
+
 
 def file_info(file_name):
     retlist = []

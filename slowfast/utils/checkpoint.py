@@ -9,6 +9,7 @@ import numpy as np
 import os
 import pickle
 from collections import OrderedDict
+
 import torch
 
 import slowfast.utils.distributed as du

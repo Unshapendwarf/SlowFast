@@ -7,11 +7,10 @@ from slowfast.utils.misc import launch_job
 from slowfast.utils.parser import load_config, parse_args
 
 from demo_net import demo
-from test_net import test
-from train_net import train
-
 # from memchecker import test
 from memchecker import memcheck
+from test_net import test
+from train_net import train
 from visualization import visualize
 
 

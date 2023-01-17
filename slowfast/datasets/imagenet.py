@@ -5,6 +5,7 @@ import numpy as np
 import os
 import random
 import re
+
 import torch
 import torch.utils.data
 from PIL import Image
@@ -13,7 +14,6 @@ from torchvision import transforms as transforms_tv
 import slowfast.datasets.transform as transform
 import slowfast.utils.logging as logging
 from slowfast.models.utils import calc_mvit_feature_geometry
-
 # import cv2
 from slowfast.utils.env import pathmgr
 

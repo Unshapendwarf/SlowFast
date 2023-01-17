@@ -5,6 +5,7 @@
 """Video models using PyTorchVideo model builder."""
 
 from functools import partial
+
 import torch.nn as nn
 from detectron2.layers import ROIAlign
 
@@ -12,24 +13,12 @@ from slowfast.models.batchnorm_helper import get_norm
 from slowfast.models.video_model_builder import _POOL1, _TEMPORAL_KERNEL_BASIS
 
 from pytorchvideo.models.csn import create_csn
-from pytorchvideo.models.head import (
-    create_res_basic_head,
-    create_res_roi_pooling_head,
-)
-from pytorchvideo.models.r2plus1d import (
-    create_2plus1d_bottleneck_block,
-    create_r2plus1d,
-)
+from pytorchvideo.models.head import create_res_basic_head, create_res_roi_pooling_head
+from pytorchvideo.models.r2plus1d import create_2plus1d_bottleneck_block, create_r2plus1d
 from pytorchvideo.models.resnet import create_bottleneck_block, create_resnet
 from pytorchvideo.models.slowfast import create_slowfast
-from pytorchvideo.models.vision_transformers import (
-    create_multiscale_vision_transformers,
-)
-from pytorchvideo.models.x3d import (
-    Swish,
-    create_x3d,
-    create_x3d_bottleneck_block,
-)
+from pytorchvideo.models.vision_transformers import create_multiscale_vision_transformers
+from pytorchvideo.models.x3d import Swish, create_x3d, create_x3d_bottleneck_block
 
 from .build import MODEL_REGISTRY
 

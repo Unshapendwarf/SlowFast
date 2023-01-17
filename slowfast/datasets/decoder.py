@@ -3,20 +3,19 @@
 
 import logging
 import math
+import numpy as np
 import random
+import threading
 from typing import List, Optional
 
-# import sys
-
-import numpy as np
 import torch
 import torchvision.io as io
 from torch import Tensor
 
 from . import transform as transform
-from .frame_saver import Qcontainer
-import threading
+from .frame_saver import ContainerSSD
 
+# import sys
 logger = logging.getLogger(__name__)
 
 
@@ -673,13 +672,13 @@ def pyav_all_decode(
 
         frames = [frame.to_rgb().to_ndarray() for frame in video_frames]
         frames = torch.as_tensor(np.stack(frames))
-    # del video_frames
-    # print(frames.element_size() * frames.element() / 1028 / 1028)  # memory size in MB  --> print size
+    # print(frames.element_size() * frames.element() / 1028 / 1028)  # memory size in MB
     frames_out = [frames]
 
     return frames_out, fps, decode_all_video, start_end_delta_time
 
 
+# -----------------------------------------------------------------------------
 def sub_decoder(
     container,
     sampling_rate,
@@ -695,8 +694,8 @@ def sub_decoder(
     max_delta=math.inf,
     temporally_rnd_clips=True,
     num_preview=1,
-    frame_container=Qcontainer("", 1),
-)-> list:
+    frame_list=None,
+):
     # print("decoder works")
     # only one decoder for enhanced one: PyAV
     # print(f"{num_frames}, {type(num_frames)}")  # num_frames : [8, 8]
@@ -730,20 +729,20 @@ def sub_decoder(
         )
     except Exception as e:
         print("Failed to decode with exception: {}".format(e))
-        frame_container.q_push(None, None, None)
+        # frame_list = []
+        return
 
     # Return None if the frames was not decoded successfully.
     if frames_decoded is None or None in frames_decoded:
-        frame_container.q_push(None, None, None)
+        # frame_list = []
+        return
 
     if not isinstance(frames_decoded, list):
         frames_decoded = [frames_decoded]
     num_decoded = len(frames_decoded)
     clip_sizes = [np.maximum(1.0, sampling_rate[i] * num_frames[i] / target_fps * fps) for i in range(len(sampling_rate))]
 
-    preview_list = []
     for i_preview in range(num_preview):
-        # print(f"num_preview: {i}/{num_preview}")
         if decode_all_video:  # full video was decoded (not trimmed yet)
             start_end_delta_time = get_multiple_start_end_idx(
                 frames_decoded[0].shape[0],
@@ -804,9 +803,9 @@ def sub_decoder(
         ret_diff_aug = time_diff_aug[:]
         frames_out, start_end_delta_time, time_diff_aug = None, None, None
 
-        preview_list.append([ret_frame, ret_time, ret_diff_aug])
-    print(f"type {len(preview_list[0])}")
-    return preview_list
+        frame_list.append([ret_frame, ret_time, ret_diff_aug])
+    
+    # print(f"type {len(frame_list[0])}")
     # del frames_decoded
 
 
@@ -827,13 +826,15 @@ def enhanced_decode(
     max_delta=math.inf,
     temporally_rnd_clips=True,
     num_preview=0,
-    frame_container=Qcontainer("", 1),
+    frame_container=ContainerSSD("", 1),
 ):
     if backend != "pyav":
         raise NotImplementedError("Only support pyav but given {} ".format(backend))
 
     min_preview = 2  # min_preview is a threshold
     frame_count = frame_container.get_len()
+
+    frame_list = []
     t1_args = (
         container,
         sampling_rate,
@@ -849,25 +850,28 @@ def enhanced_decode(
         max_delta,
         temporally_rnd_clips,
         max(num_preview, 1),
-        frame_container,
+        frame_list,
     )
 
     # init status 를 알려줄 거는?
     if frame_count == 0:
         t1 = threading.Thread(target=sub_decoder, args=t1_args)
         t1.start()
-        ret_list = t1.join()
+        t1.join()
 
     elif frame_count == min_preview:
         t1 = threading.Thread(target=sub_decoder, args=t1_args)
         t1.start()
-        ret_list = t1.join()
-    else:
-        ret_list = []
+        t1.join()
 
-    for i, i_list in enumerate(ret_list):
+    # print(f"frame_list length is {len(frame_list)}")
+    for i, i_list in enumerate(frame_list):
         if i == 0:
+            # you have to return it without PNG writing
+            frame_container.q_push(i_list[0], i_list[1], i_list[2])
             return i_list[0], i_list[1], i_list[2]
+        else:
+            frame_container.q_push(i_list[0], i_list[1], i_list[2])
 
     # frames_out, start_end_delta_time, time_diff_aug = frame_container.q_pop()
     # return frames_out, start_end_delta_time, time_diff_aug

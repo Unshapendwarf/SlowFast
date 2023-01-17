@@ -4,6 +4,7 @@
 import numpy as np
 import os
 import random
+
 import pandas
 import torch
 import torch.utils.data
@@ -20,11 +21,7 @@ from . import utils as utils
 from . import video_container as container
 from .build import DATASET_REGISTRY
 from .random_erasing import RandomErasing
-from .transform import (
-    MaskingGenerator,
-    MaskingGenerator3D,
-    create_random_augment,
-)
+from .transform import MaskingGenerator, MaskingGenerator3D, create_random_augment
 
 logger = logging.get_logger(__name__)
 

@@ -6,8 +6,8 @@
 import numpy as np
 import os
 import pickle
+
 import torch
-import nvtx
 
 import slowfast.utils.checkpoint as cu
 import slowfast.utils.distributed as du
@@ -18,6 +18,8 @@ from slowfast.datasets import loader
 from slowfast.models import build_model
 from slowfast.utils.env import pathmgr
 from slowfast.utils.meters import AVAMeter, TestMeter
+
+import nvtx
 
 logger = logging.get_logger(__name__)
 

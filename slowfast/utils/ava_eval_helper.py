@@ -23,12 +23,8 @@
 
 """Helper functions for AVA evaluation."""
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import csv
 import logging
 import numpy as np
@@ -37,10 +33,7 @@ import time
 from collections import defaultdict
 
 import slowfast.utils.distributed as du
-from slowfast.utils.ava_evaluation import (
-    object_detection_evaluation,
-    standard_fields,
-)
+from slowfast.utils.ava_evaluation import object_detection_evaluation, standard_fields
 from slowfast.utils.env import pathmgr
 
 logger = logging.getLogger(__name__)

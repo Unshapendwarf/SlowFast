@@ -27,12 +27,8 @@ It supports the following operations:
 Note: This module operates on numpy boxes and box lists.
 """
 
-from __future__ import (
-    absolute_import,
-    division,
-    print_function,
-    unicode_literals,
-)
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import collections
 import logging
 import numpy as np

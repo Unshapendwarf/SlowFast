@@ -5,6 +5,7 @@
 
 import math
 from functools import partial
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,11 +18,8 @@ from slowfast.models.batchnorm_helper import get_norm
 from slowfast.models.common import TwoStreamFusion
 from slowfast.models.reversible_mvit import ReversibleMViT
 from slowfast.models.utils import (
-    calc_mvit_feature_geometry,
-    get_3d_sincos_pos_embed,
-    round_width,
-    validate_checkpoint_wrapper_import,
-)
+    calc_mvit_feature_geometry, get_3d_sincos_pos_embed, round_width,
+    validate_checkpoint_wrapper_import)
 
 from . import head_helper, operators, resnet_helper, stem_helper  # noqa
 from .build import MODEL_REGISTRY

@@ -1,8 +1,7 @@
+import nvidia.dali.fn as fn
+import nvidia.dali.types as types
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali.plugin import pytorch
-import nvidia.dali.fn as fn
-
-import nvidia.dali.types as types
 
 
 class dali_transform:
