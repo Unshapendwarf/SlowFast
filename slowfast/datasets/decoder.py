@@ -18,7 +18,6 @@ from .frame_saver import ContainerSSD
 # import sys
 logger = logging.getLogger(__name__)
 
-
 def temporal_sampling(frames, start_idx, end_idx, num_samples):
     """
     Given the start and end frame index, sample num_samples frames between

@@ -1,11 +1,12 @@
 import os
 from queue import Queue
-import torch
-import torch.utils.data
-import torchvision.transforms as transforms
 from .transform import random_crop
 from PIL import Image
 from torchvision.utils import make_grid, save_image
+
+class DataDaemon:
+    def __init__(self, ):
+        print("hello")
 
 
 class BaseContainer:
@@ -31,6 +32,10 @@ class BaseContainer:
 
 
 class ContainerRAM(BaseContainer):
+    """
+    store the cropped data at the memory
+
+    """
     __slots__ = ()
 
     def __init__(self, video_name: str, num_preview: int = 1):
@@ -59,6 +64,10 @@ class ContainerRAM(BaseContainer):
 
 
 class ContainerSSD(BaseContainer):
+    """
+    frame Container for SSD design implementation
+    """
+
     __slots__ = ["storage_path"]
 
     def __init__(self, video_name: str, num_preview: int = 1):
@@ -73,16 +82,16 @@ class ContainerSSD(BaseContainer):
             return
         else:
             save_path1, save_path2, start_end_times, tdiff = self.data_queue.get()  # expected outputs are in 3 ways
-        
+
         # load PNG images as PIL images
         frames = []
-        
+
         stitched1 = Image.open(save_path1)
         stitched2 = Image.open(save_path2)
-        
+
         ######## you should start from here. this is cropping for temporal frames
         ######## 2023-01-16
-        
+
         # cropped1 = stitched1.crop(self.index+)
         # images are already cropped here
         frames.append()
@@ -92,20 +101,20 @@ class ContainerSSD(BaseContainer):
         return frame
 
     def q_push(self, raw_frames, st_end_time, tdiff):
-        '''
+        """
         raw_frames: raw_frames from pyav decoder
         st_end_time: frame start-end time
         tdiff: time difference
-        
-        '''
+        """
+
         # randomly crop the frames
         cropped_1 = self.cropper(raw_frames[0])
         cropped_2 = self.cropper(raw_frames[1])
-        
+
         save_name = self.video_name + f"_{self.index}"
-        save_path1 = os.path.join(self.storage_path, "bb", save_name)
+        save_path1 = os.path.join(self.storage_path, "aa", save_name)
         save_path2 = os.path.join(self.storage_path, "bb", save_name)
-        
+
         # cropped_1 & cropped_2 are in form of "T C H W"
         stitched_img1 = make_grid(cropped_1, padding=0)
         stitched_img2 = make_grid(cropped_2, padding=0)
@@ -113,7 +122,7 @@ class ContainerSSD(BaseContainer):
         save_image(stitched_img2, save_path2)
 
         # push save-path, start-end time, tdiff in dataQueue
-        self.data_queue.put((save_path1, save_path2, st_end_time, tdiff))  # put above data, what is the format? listed data?
+        self.data_queue.put((save_path1, save_path2, st_end_time, tdiff))  # put above data, what is the format?
 
         # self.qlen update
         self.q_length = self.data_queue.qsize()  # or self.qlen += 1

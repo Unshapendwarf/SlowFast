@@ -4,15 +4,15 @@
 """Multi-view test a video classification model."""
 
 import numpy as np
-import os
 import time as TT
-
 import torch
 
 import slowfast.utils.distributed as du
 import slowfast.utils.logging as logging
 import slowfast.utils.misc as misc
 from slowfast.datasets import loader
+
+import multiprocessing
 
 logger = logging.get_logger(__name__)
 
@@ -95,8 +95,6 @@ def memcheck(cfg):
 
     # Print config.
     logger.info("MemCheck")
-    # logger.info("MemCheck with config:")
-    # logger.info(cfg)
 
     # Create video testing loaders.
     # logger.info(f"Dataloaer Split will be changed from 'memcheck' to 'train'.")
