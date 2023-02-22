@@ -313,9 +313,9 @@ class Kinetics(torch.utils.data.Dataset):
                 min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
                 max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
             )
-            print(f"in decode: {frames[0].shape}, {type(frames[0])}, {time_idx[0].shape}")
             frames_decoded = frames
             time_idx_decoded = time_idx
+            print(f"in decode: {type(frames)} {frames[0].shape}, {type(time_idx_decoded)}, {time_idx_decoded[0].shape}")
             # print(time_idx_decoded)
             # print(frames_decoded[0].shape, len(time_idx_decoded))
 
