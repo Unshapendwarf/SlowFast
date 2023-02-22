@@ -131,16 +131,22 @@ class Kinetics(torch.utils.data.Dataset):
                 elif len(fetch_info) == 1:
                     path, label = fetch_info[0], 0
                 else:
-                    raise RuntimeError("Failed to parse video fetch {} info {} retries.".format(path_to_file, fetch_info))
+                    raise RuntimeError(
+                        "Failed to parse video fetch {} info {} retries.".format(path_to_file, fetch_info)
+                    )
                 for idx in range(self._num_clips):
                     self._path_to_videos.append(os.path.join(self.cfg.DATA.PATH_PREFIX, path))
                     # self._labels.append(label)
                     self._labels.append(int(label))
                     self._spatial_temporal_idx.append(idx)
                     self._video_meta[clip_idx * self._num_clips + idx] = {}
-        assert len(self._path_to_videos) > 0, "Failed to load Kinetics split {} from {}".format(self._split_idx, path_to_file)
+        assert len(self._path_to_videos) > 0, "Failed to load Kinetics split {} from {}".format(
+            self._split_idx, path_to_file
+        )
         logger.info(
-            "Constructing kinetics dataloader (size: {} skip_rows {}) from {} ".format(len(self._path_to_videos), self.skip_rows, path_to_file)
+            "Constructing kinetics dataloader (size: {} skip_rows {}) from {} ".format(
+                len(self._path_to_videos), self.skip_rows, path_to_file
+            )
         )
 
     def _set_epoch_num(self, epoch):
@@ -193,7 +199,9 @@ class Kinetics(torch.utils.data.Dataset):
             max_scale = self.cfg.DATA.TRAIN_JITTER_SCALES[1]
             crop_size = self.cfg.DATA.TRAIN_CROP_SIZE
             if short_cycle_idx in [0, 1]:
-                crop_size = int(round(self.cfg.MULTIGRID.SHORT_CYCLE_FACTORS[short_cycle_idx] * self.cfg.MULTIGRID.DEFAULT_S))
+                crop_size = int(
+                    round(self.cfg.MULTIGRID.SHORT_CYCLE_FACTORS[short_cycle_idx] * self.cfg.MULTIGRID.DEFAULT_S)
+                )
             if self.cfg.MULTIGRID.DEFAULT_S > 0:
                 # Decreasing the scale is equivalent to using a larger "span"
                 # in a sampling grid.
@@ -203,7 +211,11 @@ class Kinetics(torch.utils.data.Dataset):
             # spatial_sample_index is in [0, 1, 2]. Corresponding to left,
             # center, or right if width is larger than height, and top, middle,
             # or bottom if height is larger than width.
-            spatial_sample_index = (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS) if self.cfg.TEST.NUM_SPATIAL_CROPS > 1 else 1
+            spatial_sample_index = (
+                (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS)
+                if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
+                else 1
+            )
             min_scale, max_scale, crop_size = (
                 [self.cfg.DATA.TEST_CROP_SIZE] * 3
                 if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
@@ -243,7 +255,11 @@ class Kinetics(torch.utils.data.Dataset):
                     index = random.randint(0, len(self._path_to_videos) - 1)
                 continue  # Select a random video if the current video was not able to access.
             if video_container is None:
-                logger.warning("Failed to meta load video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
+                logger.warning(
+                    "Failed to meta load video idx {} from {}; trial {}".format(
+                        index, self._path_to_videos[index], i_try
+                    )
+                )
                 if self.mode not in ["test"] and i_try > self._num_retries // 8:
                     # let's try another one
                     index = random.randint(0, len(self._path_to_videos) - 1)
@@ -283,17 +299,21 @@ class Kinetics(torch.utils.data.Dataset):
                 num_frames,
                 temporal_sample_index,
                 self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
-                video_meta=self._video_meta[index] if len(self._video_meta) < 5e6 else {},  # do not cache on huge datasets
+                video_meta=self._video_meta[index]
+                if len(self._video_meta) < 5e6
+                else {},  # do not cache on huge datasets
                 target_fps=target_fps,
                 backend=self.cfg.DATA.DECODING_BACKEND,
                 use_offset=self.cfg.DATA.USE_OFFSET_SAMPLING,
-                max_spatial_scale=min_scale[0] if all(x == min_scale[0] for x in min_scale) else 0,  # if self.mode in ["test"] else 0,
+                max_spatial_scale=min_scale[0]
+                if all(x == min_scale[0] for x in min_scale)
+                else 0,  # if self.mode in ["test"] else 0,
                 time_diff_prob=self.p_convert_dt if self.mode in ["train"] else 0.0,
                 temporally_rnd_clips=True,
                 min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
                 max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
             )
-            # print(frames[0].shape)
+            print(f"in decode: {frames[0].shape}, {type(frames[0])}, {time_idx[0].shape}")
             frames_decoded = frames
             time_idx_decoded = time_idx
             # print(time_idx_decoded)
@@ -302,7 +322,9 @@ class Kinetics(torch.utils.data.Dataset):
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
             if frames_decoded is None or None in frames_decoded:
-                logger.warning("Failed to decode video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
+                logger.warning(
+                    "Failed to decode video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try)
+                )
                 print(f"num_retries: {self._num_retries}")
                 index = random.randint(0, len(self._path_to_videos) - 1)
                 # if self.mode not in ["test"] and (i_try % (self._num_retries // 8)) == 0:
