@@ -315,7 +315,7 @@ class Kinetics(torch.utils.data.Dataset):
             )
             frames_decoded = frames
             time_idx_decoded = time_idx
-            print(f"in decode: {type(frames)} {frames[0].shape}, {type(time_idx_decoded)}, {time_idx_decoded[0].shape}")
+            # print(f"in decode: {type(frames)} {frames[0].shape}, {type(time_idx_decoded)}, {time_idx_decoded[0].shape}")
             # print(time_idx_decoded)
             # print(frames_decoded[0].shape, len(time_idx_decoded))
 
