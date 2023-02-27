@@ -2,8 +2,8 @@ TASK: ssl
 MEMCHECK:
   ENABLE: False
   DATASET: kinetics
-  BATCH_SIZE: 8
-  ONLY_FIRST_50: True
+  BATCH_SIZE: 32
+  # ONLY_FIRST_50: True
 TRAIN:
   ENABLE: True
   DATASET: kinetics
@@ -12,7 +12,14 @@ TRAIN:
   CHECKPOINT_ENABLE: False
   CHECKPOINT_PERIOD: 20
   AUTO_RESUME: True
-  BATCH_SIZE: 64
+  BATCH_SIZE: 32
+TEST:
+  ENABLE: False
+  DATASET: kinetics
+  BATCH_SIZE: 1
+DATA_LOADER:
+  NUM_WORKERS: 0
+  PIN_MEMORY: True
 MODEL:
   NUM_CLASSES: 256
   MODEL_NAME: ContrastiveModel
@@ -69,23 +76,17 @@ SOLVER:
   LARS_ON: True
   BASE_LR_SCALE_NUM_SHARDS: True
   LR_POLICY: cosine
-  MAX_EPOCH: 2
+  MAX_EPOCH: 10
   MOMENTUM: 0.9
   WEIGHT_DECAY: 1e-6
   WARMUP_EPOCHS: 35.0
   WARMUP_START_LR: 0.001
   OPTIMIZING_METHOD: sgd
-TEST:
-  ENABLE: False
-  DATASET: kinetics
-  BATCH_SIZE: 16
-DATA_LOADER:
-  NUM_WORKERS: 24
-  PIN_MEMORY: True
 
 NUM_GPUS: 1
 RNG_SEED: 0
 OUTPUT_DIR: .
+
 DALI_ENABLE: False
 # DALI_FILE: "/home/hong/slowfast/index_files/dali/bigone.txt"
 DALI_FILE: "/home/hong/slowfast/index_files/dali/test.txt"

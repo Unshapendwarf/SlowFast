@@ -1,4 +1,8 @@
+# project
+checkpoints*/
+
 # Byte-compiled / optimized / DLL files
+.slowfast
 .vscode/
 *.qdrep
 memory_log/
