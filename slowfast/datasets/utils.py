@@ -3,6 +3,7 @@
 import logging
 import numpy as np
 import os
+import sys
 import random
 import time
 from collections import defaultdict
@@ -19,7 +20,16 @@ from . import transform as transform
 from .random_erasing import RandomErasing
 from .transform import create_random_augment
 
+import grpc
+import atexit
 
+sys.path.append("/home/hong/slowfast/grpc_fs")
+import data_feed_pb2
+import data_feed_pb2_grpc
+
+
+_worker_channel_singleton = None
+_worker_stub_singleton = None
 logger = logging.getLogger(__name__)
 
 
@@ -98,9 +108,7 @@ def pack_pathway_output(cfg, frames):
         slow_pathway = torch.index_select(
             frames,
             1,
-            torch.linspace(
-                0, frames.shape[1] - 1, frames.shape[1] // cfg.SLOWFAST.ALPHA
-            ).long(),
+            torch.linspace(0, frames.shape[1] - 1, frames.shape[1] // cfg.SLOWFAST.ALPHA).long(),
         )
         frame_list = [slow_pathway, fast_pathway]
     else:
@@ -162,11 +170,7 @@ def spatial_sampling(
             )
             frames, _ = transform.random_crop(frames, crop_size)
         else:
-            transform_func = (
-                transform.random_resized_crop_with_shift
-                if motion_shift
-                else transform.random_resized_crop
-            )
+            transform_func = transform.random_resized_crop_with_shift if motion_shift else transform.random_resized_crop
             frames = transform_func(
                 images=frames,
                 target_height=crop_size,
@@ -180,9 +184,7 @@ def spatial_sampling(
         # The testing is deterministic and no jitter should be performed.
         # min_scale, max_scale, and crop_size are expect to be the same.
         assert len({min_scale, max_scale}) == 1
-        frames, _ = transform.random_short_side_scale_jitter(
-            frames, min_scale, max_scale
-        )
+        frames, _ = transform.random_short_side_scale_jitter(frames, min_scale, max_scale)
         frames, _ = transform.uniform_crop(frames, crop_size, spatial_idx)
     return frames
 
@@ -265,9 +267,7 @@ def load_image_lists(frame_list_file, prefix="", return_list=False):
             image_paths[video_name].append(path)
             frame_labels = row[-1].replace('"', "")
             if frame_labels != "":
-                labels[video_name].append(
-                    [int(x) for x in frame_labels.split(",")]
-                )
+                labels[video_name].append([int(x) for x in frame_labels.split(",")])
             else:
                 labels[video_name].append([])
 
@@ -347,12 +347,100 @@ def create_sampler(dataset, shuffle, cfg):
     return sampler
 
 
-def loader_worker_init_fn(dataset):
+def _initialize_worker(server_address: str) -> None:
+    """
+    Setup a grpc stub if not available.
+
+    Args:
+        server_address (str)
+
+    Returns:
+        None
+    """
+    global _worker_channel_singleton
+    global _worker_stub_singleton
+    _worker_channel_singleton = grpc.insecure_channel(
+        server_address,
+        options=[
+            ("grpc.max_send_message_length", -1),
+            ("grpc.max_receive_message_length", -1),
+            ("grpc.so_reuseport", 1),
+            ("grpc.use_local_subchannel_pool", 1),
+        ],
+    )
+    try:
+        logger.info("init workers")
+        _worker_stub_singleton = data_feed_pb2_grpc.DataFeedStub(_worker_channel_singleton)
+    except grpc.RpcError as e:
+        logger.error("Error creating stub: {}".format(e.details()))
+    else:
+        print("init done")
+    # print(type(_worker_channel_singleton)
+    # atexit.register(_shutdown_worker)
+
+
+# def run_worker_query(get_tuple: tuple) -> str:
+#     """
+#     Execute the call to the gRPC server.
+#     Args:
+#     Returns:
+#     """
+#     index, imgname = get_tuple
+#     # print(f"send {imgname}, ", end="")
+
+#     response: data_feed_pb2.Sample = _worker_stub_singleton.get_sample(
+#         data_feed_pb2.Config(index=index, filename=imgname)
+#     )
+
+#     num_fr, size_fr = response.num_fr, response.size_fr
+#     reconstruction = (num_fr, size_fr, size_fr, 3)
+#     frame1 = np.frombuffer(response.frames.frame1, dtype=np.uint8).reshape(reconstruction)
+#     frame2 = np.frombuffer(response.frames.frame1, dtype=np.uint8).reshape(reconstruction)
+#     # print(f"received frame: {frame1}")
+
+#     # print(list(response.st_times.st_time1))
+
+#     frames = [torch.as_tensor(frame1.copy()), torch.as_tensor(frame2.copy())]
+#     st_time = np.array([np.array(response.st_times.st_time1), np.array(response.st_times.st_time2)])
+#     tdiff = np.array([np.array(response.tdiffs.tdiff1), np.array(response.tdiffs.tdiff2)])
+
+#     return frames, st_time, tdiff
+
+
+def loader_worker_init_fn(dataset, split):
     """
     Create init function passed to pytorch data loader.
     Args:
         dataset (torch.utils.data.Dataset): the given dataset.
     """
+    # # server_address = "localhost:50051"
+    # server_address = "143.248.53.54:50051"
+    # worker_info = torch.utils.data.get_worker_info()
+    # # if worker_info in [None]:
+    # #     None
+    # # else:
+    # if split in ["kinetics"]:
+    #     _worker_channel_singleton = None
+    #     _worker_stub_singleton = None
+    #     _worker_channel_singleton = grpc.insecure_channel(
+    #         server_address,
+    #         options=[
+    #             ("grpc.max_send_message_length", -1),
+    #             ("grpc.max_receive_message_length", -1),
+    #             ("grpc.so_reuseport", 1),
+    #             ("grpc.use_local_subchannel_pool", 1),
+    #         ],
+    #     )
+    #     try:
+    #         logger.info("init workers")
+    #         _worker_stub_singleton = data_feed_pb2_grpc.DataFeedStub(_worker_channel_singleton)
+    #     except grpc.RpcError as e:
+    #         logger.error("Error creating stub: {}".format(e.details()))
+    #     else:
+    #         print("init done")
+    #     # print(type(_worker_channel_singleton)
+    #     # atexit.register(_shutdown_worker)
+
     return None
 
 
@@ -420,9 +508,7 @@ def aug_frame(
         inverse_uniform_sampling=cfg.DATA.INV_UNIFORM_SAMPLE,
         aspect_ratio=relative_aspect,
         scale=relative_scales,
-        motion_shift=cfg.DATA.TRAIN_JITTER_MOTION_SHIFT
-        if mode in ["train"]
-        else False,
+        motion_shift=cfg.DATA.TRAIN_JITTER_MOTION_SHIFT if mode in ["train"] else False,
     )
 
     if rand_erase:
@@ -441,9 +527,7 @@ def aug_frame(
 
 
 def _frame_to_list_img(frames):
-    img_list = [
-        transforms.ToPILImage()(frames[i]) for i in range(frames.size(0))
-    ]
+    img_list = [transforms.ToPILImage()(frames[i]) for i in range(frames.size(0))]
     return img_list
 
 

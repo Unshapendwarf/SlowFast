@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package datafeed;
+
+// Message Definition
+service DataFeed {
+  rpc get_sample(Config) returns (Sample) {}
+}
+
+message Config {
+  int32 index = 1;
+  string filename = 2;
+}
+
+message Sample {
+  Frames frames = 1;
+  ST_times st_times = 2;
+  Tdiffs tdiffs = 3;
+  int32 num_fr = 4;
+  int32 size_fr = 5;
+}
+
+message Frames {
+  bytes frame1 = 1;
+  bytes frame2 = 2;
+}
+
+message ST_times {
+  repeated float st_time1 = 1;
+  repeated float st_time2 = 2;
+}
+
+message Tdiffs {
+  repeated float tdiff1 = 1;
+  repeated float tdiff2 = 2;
+}
+
