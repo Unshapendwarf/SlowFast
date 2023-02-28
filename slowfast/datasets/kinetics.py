@@ -154,13 +154,9 @@ class Kinetics(torch.utils.data.Dataset):
                 elif len(fetch_info) == 1:
                     path, label = fetch_info[0], 0
                 else:
-<<<<<<< HEAD
-                    raise RuntimeError("Failed to parse video fetch {} info {} retries.".format(path_to_file, fetch_info))
-=======
                     raise RuntimeError(
                         "Failed to parse video fetch {} info {} retries.".format(path_to_file, fetch_info)
                     )
->>>>>>> 3e58658aee87f3923da03ffb03bb3d3d3a89f93f
                 for idx in range(self._num_clips):
                     self._path_to_videos.append(os.path.join(self.cfg.DATA.PATH_PREFIX, path))
                     # self._labels.append(label)
