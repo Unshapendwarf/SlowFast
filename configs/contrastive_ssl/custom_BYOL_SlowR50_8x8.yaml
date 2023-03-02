@@ -76,7 +76,7 @@ SOLVER:
   LARS_ON: True
   BASE_LR_SCALE_NUM_SHARDS: True
   LR_POLICY: cosine
-  MAX_EPOCH: 10
+  MAX_EPOCH: 50
   MOMENTUM: 0.9
   WEIGHT_DECAY: 1e-6
   WARMUP_EPOCHS: 35.0
@@ -90,4 +90,4 @@ OUTPUT_DIR: .
 DALI_ENABLE: False
 # DALI_FILE: "/home/hong/slowfast/index_files/dali/bigone.txt"
 DALI_FILE: "/home/hong/slowfast/index_files/dali/test.txt"
-LOG_PERIOD: 100
+LOG_PERIOD: 200

@@ -40,7 +40,9 @@
 - iopath: `conda install -c iopath iopath`
 - psutil: `conda install -c conda-forge psutil`
 - opencv: `pip install opencv-python`
-- tensorboard: `conda install -c conda-forge tensorboard`
+- pandas: `conda install -c anaconda pandas`
+- scikit-learn: `conda install -c anaconda scikit-learn`
+- tensorboard: `conda install -c conda-forge tensorboard=2.12`
 - moviepy: `conda install -c conda-forge moviepy`
 - pytorchvideo:
 ```
