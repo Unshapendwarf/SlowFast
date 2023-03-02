@@ -27,7 +27,6 @@ from slowfast.models.contrastive import (
 from slowfast.utils.meters import AVAMeter, EpochTimer, TrainMeter, ValMeter
 from slowfast.utils.multigrid import MultigridSchedule
 
-import nvtx
 
 logger = logging.get_logger(__name__)
 
@@ -158,27 +157,26 @@ def train_epoch(
             with torch.cuda.amp.autocast(enabled=cfg.TRAIN.MIXED_PRECISION):
 
                 # Explicitly declare reduction to mean.
-                with nvtx.annotate("train"):
-                    perform_backward = True
-                    optimizer.zero_grad()
+                perform_backward = True
+                optimizer.zero_grad()
 
-                    if cfg.MODEL.MODEL_NAME == "ContrastiveModel":
-                        (
-                            model,
-                            preds,
-                            partial_loss,
-                            perform_backward,
-                        ) = contrastive_forward(model, cfg, inputs, index, time, epoch_exact, scaler)
-                    elif cfg.DETECTION.ENABLE:
-                        # Compute the predictions.
-                        preds = model(inputs, meta["boxes"])
-                    elif cfg.MASK.ENABLE:
-                        preds, labels = model(inputs)
-                    else:
-                        preds = model(inputs)
+                if cfg.MODEL.MODEL_NAME == "ContrastiveModel":
+                    (
+                        model,
+                        preds,
+                        partial_loss,
+                        perform_backward,
+                    ) = contrastive_forward(model, cfg, inputs, index, time, epoch_exact, scaler)
+                elif cfg.DETECTION.ENABLE:
+                    # Compute the predictions.
+                    preds = model(inputs, meta["boxes"])
+                elif cfg.MASK.ENABLE:
+                    preds, labels = model(inputs)
+                else:
+                    preds = model(inputs)
+                    
                 if cfg.TASK == "ssl" and cfg.MODEL.MODEL_NAME == "ContrastiveModel":
                     labels = torch.zeros(preds.size(0), dtype=labels.dtype, device=labels.device)
-                # with nvtx.annotate("loss"):
                 if cfg.MODEL.MODEL_NAME == "ContrastiveModel" and partial_loss:
                     loss = partial_loss
                 else:
@@ -297,7 +295,7 @@ def train_epoch(
                     )
 
             etime = TT.time()
-            print(etime - stimer)
+            # print(etime - stimer)
             stimer = etime
 
             train_meter.iter_toc()  # do measure allreduce for this meter
@@ -599,7 +597,8 @@ def train(cfg):
         start_epoch = checkpoint_epoch + 1
     else:
         start_epoch = 0
-    start_epoch = 0
+    print(f"start_epoch is {start_epoch}")
+    start_epoch = 0 # always start newly
     # Create the video train and val loaders.
     train_loader = loader.construct_loader(cfg, "train")
     val_loader = loader.construct_loader(cfg, "val")
@@ -665,10 +664,9 @@ def train(cfg):
                 cu.load_checkpoint(last_checkpoint, model, cfg.NUM_GPUS > 1, optimizer)
 
         # Shuffle the dataset.
-        if not cfg.DALI_ENABLE:
-            loader.shuffle_dataset(train_loader, cur_epoch)
-            if hasattr(train_loader.dataset, "_set_epoch_num"):
-                train_loader.dataset._set_epoch_num(cur_epoch)
+        loader.shuffle_dataset(train_loader, cur_epoch)
+        if hasattr(train_loader.dataset, "_set_epoch_num"):
+            train_loader.dataset._set_epoch_num(cur_epoch)
         # Train for one epoch.
         epoch_timer.epoch_tic()
         hit_cnt = 0
@@ -683,15 +681,6 @@ def train(cfg):
             idx_dict,
             writer,
         )
-
-        # # print dictionary information
-        # print(f"idx_dict len: {len(idx_dict)}")
-        # for idx_key in idx_dict:
-        #     if len(idx_dict[idx_key]) > 2:
-        #         print(len(idx_dict[idx_key]))
-        #     for pts_key in idx_dict[idx_key]:
-        #         if idx_dict[idx_key][pts_key] > 1:
-        #             print(f"----------> redudant")
 
         epoch_timer.epoch_toc()
         logger.info(
@@ -745,7 +734,7 @@ def train(cfg):
                 scaler if cfg.TRAIN.MIXED_PRECISION else None,
             )
         # Evaluate the model on validation set.
-        is_eval_epoch = False
+        is_eval_epoch = False  # never get into eval_epoch()
         if is_eval_epoch:
             eval_epoch(
                 val_loader,

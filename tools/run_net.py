@@ -30,7 +30,6 @@ def main():
 
         # Perform training.
         if cfg.TRAIN.ENABLE:
-            print(cfg.NUM_GPUS)
             launch_job(cfg=cfg, init_method=args.init_method, func=train)
 
         # Perform multi-clip testing.

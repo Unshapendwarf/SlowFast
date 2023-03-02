@@ -15,7 +15,6 @@ from torch.utils.data.sampler import RandomSampler, Sampler
 from slowfast.datasets.multigrid_helper import ShortCycleBatchSampler
 
 from . import utils as utils
-from .advanced import dataloader
 
 # from . import custom_dali as dali
 from .build import build_dataset
@@ -109,20 +108,14 @@ def construct_loader(cfg, split, is_precise_bn=False):
         split = "train"
         dataset_name = cfg.MEMCHECK.DATASET
         batch_size = int(cfg.MEMCHECK.BATCH_SIZE / max(1, cfg.NUM_GPUS))
-        shuffle = False
+        shuffle = True
         drop_last = False
-
-    # When cfg.DALI_ENABLE is True, loader should be the dali pipelined loader
-    if cfg.DALI_ENABLE:
-        assert cfg.NUM_GPUS <= 1, "DALI enabled when num_GPUs > 1"
-        print(split)
-        return
 
     # Construct the dataset
     dataset = build_dataset(dataset_name, cfg, split)
 
     if isinstance(dataset, torch.utils.data.IterableDataset):
-        loader = dataloader.FastDataLoader(
+        loader = torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
             num_workers=cfg.DATA_LOADER.NUM_WORKERS,
@@ -137,7 +130,7 @@ def construct_loader(cfg, split, is_precise_bn=False):
             sampler = utils.create_sampler(dataset, shuffle, cfg)
             batch_sampler = ShortCycleBatchSampler(sampler, batch_size=batch_size, drop_last=drop_last, cfg=cfg)
             # Create a loader
-            loader = dataloader.FastDataLoader(
+            loader = torch.utils.data.DataLoader(
                 dataset,
                 batch_sampler=batch_sampler,
                 num_workers=cfg.DATA_LOADER.NUM_WORKERS,
@@ -158,7 +151,7 @@ def construct_loader(cfg, split, is_precise_bn=False):
                 collate_func = partial(multiple_samples_collate, fold="imagenet" in dataset_name)
             else:
                 collate_func = None
-            loader = dataloader.FastDataLoader(
+            loader = torch.utils.data.DataLoader(
                 dataset,
                 batch_size=batch_size,
                 shuffle=(False if sampler else shuffle),
