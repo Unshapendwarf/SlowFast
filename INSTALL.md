@@ -30,6 +30,28 @@
     # You can find more details at https://github.com/facebookresearch/detectron2/blob/master/INSTALL.md
 ```
 
+## Install with Conda
+- `conda create -n $YOUR_ENV_NAME python=3.9`
+- pytorch, torchvision: `conda install pytorch==1.10.0 torchvision==0.11.0 torchaudio==0.10.0 cudatoolkit=11.3 -c pytorch -c conda-forge`
+- fvcore>=0.1.5, pyyaml: `conda install -c fvcore -c iopath -c conda-forge fvcore`
+- simplejson: `conda install -c conda-forge simplejson`
+- pyav: `conda install av -c conda-forge`
+- tqdm: `conda install -c conda-forge tqdm`
+- iopath: `conda install -c iopath iopath`
+- psutil: `conda install -c conda-forge psutil`
+- opencv: `pip install opencv-python`
+- tensorboard: `conda install -c conda-forge tensorboard`
+- moviepy: `conda install -c conda-forge moviepy`
+- pytorchvideo:
+```
+  git clone https://github.com/facebookresearch/pytorchvideo.git
+  cd pytorchvideo
+  pip install -e .
+```
+- FairScale: `pip install 'git+https://github.com/facebookresearch/fairscale'`
+- detectron: `python -m pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu113/torch1.10/index.html`
+- DALI(opional): `pip install --extra-index-url https://developer.download.nvidia.com/compute/redist --upgrade nvidia-dali-cuda110`
+
 ## Pytorch
 Please follow PyTorch official instructions to install from source:
 ```
