@@ -16,7 +16,7 @@ from slowfast.datasets.multigrid_helper import ShortCycleBatchSampler
 
 from . import utils as utils
 
-# from . import custom_dali as dali
+from . import custom_dali as dali
 from .build import build_dataset
 
 
@@ -68,7 +68,9 @@ def detection_collate(batch):
         data = [d[key] for d in extra_data]
         if key == "boxes" or key == "ori_boxes":
             # Append idx info to the bboxes before concatenating them.
-            bboxes = [np.concatenate([np.full((data[i].shape[0], 1), float(i)), data[i]], axis=1) for i in range(len(data))]
+            bboxes = [
+                np.concatenate([np.full((data[i].shape[0], 1), float(i)), data[i]], axis=1) for i in range(len(data))
+            ]
             bboxes = np.concatenate(bboxes, axis=0)
             collated_extra_data[key] = torch.tensor(bboxes).float()
         elif key == "metadata":
@@ -110,6 +112,14 @@ def construct_loader(cfg, split, is_precise_bn=False):
         batch_size = int(cfg.MEMCHECK.BATCH_SIZE / max(1, cfg.NUM_GPUS))
         shuffle = True
         drop_last = False
+
+    if cfg.DALI_ENABLE:
+        assert cfg.NUM_GPUS <= 1, "DALI ebabled when num_GPUs > 1"
+        print(f"DALI_ENABLE with split-{split}")
+        frames = 8
+        crop_size = [cfg.DATA.TRAIN_CROP_SIZE, cfg.DATA.TRAIN_CROP_SIZE]
+        loader = dali.DALILoader(batch_size, cfg.DALI_FILE, frames, crop_size, split)
+        return loader
 
     # Construct the dataset
     dataset = build_dataset(dataset_name, cfg, split)
@@ -178,8 +188,12 @@ def shuffle_dataset(loader, cur_epoch):
         else:
             raise RuntimeError("Unknown sampler for IterableDataset when shuffling dataset")
     else:
-        sampler = loader.batch_sampler.sampler if isinstance(loader.batch_sampler, ShortCycleBatchSampler) else loader.sampler
-    assert isinstance(sampler, (RandomSampler, DistributedSampler)), "Sampler type '{}' not supported".format(type(sampler))
+        sampler = (
+            loader.batch_sampler.sampler if isinstance(loader.batch_sampler, ShortCycleBatchSampler) else loader.sampler
+        )
+    assert isinstance(sampler, (RandomSampler, DistributedSampler)), "Sampler type '{}' not supported".format(
+        type(sampler)
+    )
     # RandomSampler handles shuffling automatically
     if isinstance(sampler, DistributedSampler):
         # DistributedSampler shuffles data based on epoch
