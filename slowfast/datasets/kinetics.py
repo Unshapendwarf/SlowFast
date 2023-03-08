@@ -189,8 +189,8 @@ class Kinetics(torch.utils.data.Dataset):
             index, self._num_yielded = index
             if self.cfg.MULTIGRID.SHORT_CYCLE:
                 index, short_cycle_idx = index
-        # if self.dummy_output is not None:
-        #     return self.dummy_output
+        if self.dummy_output is not None:
+            return self.dummy_output
         if self.mode in ["train", "val"]:
             # -1 indicates random sampling.
             temporal_sample_index = -1
