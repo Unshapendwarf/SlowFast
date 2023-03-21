@@ -8,11 +8,12 @@ import pandas
 import torch
 import torch.utils.data
 from torchvision import transforms
-
+import copy
 import slowfast.utils.logging as logging
 from slowfast.utils.env import pathmgr
 
 import nvtx
+import time as TTT
 
 from . import decoder as decoder
 from . import transform as transform
@@ -78,6 +79,10 @@ class Kinetics(torch.utils.data.Dataset):
         self.use_chunk_loading = True if self.mode in ["train"] and self.cfg.DATA.LOADER_CHUNK_SIZE > 0 else False
         self.dummy_output = None
 
+        # Uitaek added at 2023-03-21
+        self.dummy_frame = None
+        self.dummy_time_idx_decode = None
+
         # For training or validation mode, one single clip is sampled from every
         # video. For testing, NUM_ENSEMBLE_VIEWS clips are sampled from every
         # video. For every clip, NUM_SPATIAL_CROPS is cropped spatially from
@@ -105,7 +110,7 @@ class Kinetics(torch.utils.data.Dataset):
         Construct the video loader.
         """
         path_to_file = os.path.join(self.cfg.DATA.PATH_TO_DATA_DIR, "{}.csv".format(self.mode))
-        print("here is the path: "+path_to_file)
+        print("here is the path: " + path_to_file)
         assert pathmgr.exists(path_to_file), "{} dir not found".format(path_to_file)
 
         self._path_to_videos = []
@@ -292,29 +297,34 @@ class Kinetics(torch.utils.data.Dataset):
             if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
                 target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
 
-            # Decode video. Meta info is used to perform selective decoding.
-            frames, time_idx, tdiff = decoder.decode(
-                video_container,
-                sampling_rate,
-                num_frames,
-                temporal_sample_index,
-                self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
-                video_meta=self._video_meta[index]
-                if len(self._video_meta) < 5e6
-                else {},  # do not cache on huge datasets
-                target_fps=target_fps,
-                backend=self.cfg.DATA.DECODING_BACKEND,
-                use_offset=self.cfg.DATA.USE_OFFSET_SAMPLING,
-                max_spatial_scale=min_scale[0]
-                if all(x == min_scale[0] for x in min_scale)
-                else 0,  # if self.mode in ["test"] else 0,
-                time_diff_prob=self.p_convert_dt if self.mode in ["train"] else 0.0,
-                temporally_rnd_clips=True,
-                min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
-                max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
-            )
+            if self.cfg.DATA.DUMMY_FRAMES and self.dummy_frame is not None:
+                frames = self.dummy_frame
+                time_idx = self.dummy_time_idx_decode
+            else:
+                # Decode video. Meta info is used to perform selective decoding.
+                frames, time_idx, tdiff = decoder.decode(
+                    video_container,
+                    sampling_rate,
+                    num_frames,
+                    temporal_sample_index,
+                    self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
+                    video_meta=self._video_meta[index]
+                    if len(self._video_meta) < 5e6
+                    else {},  # do not cache on huge datasets
+                    target_fps=target_fps,
+                    backend=self.cfg.DATA.DECODING_BACKEND,
+                    use_offset=self.cfg.DATA.USE_OFFSET_SAMPLING,
+                    max_spatial_scale=min_scale[0]
+                    if all(x == min_scale[0] for x in min_scale)
+                    else 0,  # if self.mode in ["test"] else 0,
+                    time_diff_prob=self.p_convert_dt if self.mode in ["train"] else 0.0,
+                    temporally_rnd_clips=True,
+                    min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
+                    max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
+                )
             frames_decoded = frames
             time_idx_decoded = time_idx
+
             # print(f"in decode: {type(frames)} {frames[0].shape}, {type(time_idx_decoded)}, {time_idx_decoded[0].shape}")
             # print(time_idx_decoded)
             # print(frames_decoded[0].shape, len(time_idx_decoded))
@@ -333,6 +343,10 @@ class Kinetics(torch.utils.data.Dataset):
                 continue
                 # print(os.getpid())
 
+            if self.dummy_frame is None:
+                self.dummy_frame = frames_decoded
+                self.dummy_time_idx_decode = time_idx_decoded
+
             num_aug = self.cfg.DATA.TRAIN_CROP_NUM_SPATIAL * self.cfg.AUG.NUM_SAMPLE if self.mode in ["train"] else 1
             num_out = num_aug * num_decode
             f_out, time_idx_out = [None] * num_out, [None] * num_out
@@ -342,6 +356,7 @@ class Kinetics(torch.utils.data.Dataset):
             # hong added below
             # if self.dummy_output is not None:
             #     return self.dummy_output
+            start_t = TTT.time()
             for i in range(num_decode):
                 for _ in range(num_aug):
                     idx += 1
@@ -351,6 +366,12 @@ class Kinetics(torch.utils.data.Dataset):
                     f_out[idx] = f_out[idx].float()
                     f_out[idx] = f_out[idx] / 255.0
                     # print(f_out[idx].shape)
+
+                    # T H W C -> C T H W.
+                    f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
+                    f_out[idx], _ = transform.random_crop(f_out[idx], crop_size[i])
+                    f_out[idx] = f_out[idx].permute(1, 2, 3, 0)
+                    # print(f_out[idx].size())
 
                     if self.mode in ["train"] and self.cfg.DATA.SSL_COLOR_JITTER:
                         f_out[idx] = transform.color_jitter_video_ssl(
@@ -425,6 +446,7 @@ class Kinetics(torch.utils.data.Dataset):
             if self.cfg.DATA.DUMMY_LOAD:
                 if self.dummy_output is None:
                     self.dummy_output = (frames, label, index, time_idx, {})
+            # print(TTT.time() - start_t)
             return frames, label, index, time_idx, {}
         else:
             logger.warning("Failed to fetch video after {} retries.".format(self._num_retries))
