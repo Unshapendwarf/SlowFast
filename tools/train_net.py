@@ -601,7 +601,7 @@ def train(cfg):
     start_epoch = 0
     # Create the video train and val loaders.
     train_loader = loader.construct_loader(cfg, "train")
-    val_loader = loader.construct_loader(cfg, "val")
+    # val_loader = loader.construct_loader(cfg, "val")
     precise_bn_loader = loader.construct_loader(cfg, "train", is_precise_bn=True) if cfg.BN.USE_PRECISE_STATS else None
 
     if cfg.TASK == "ssl" and cfg.MODEL.MODEL_NAME == "ContrastiveModel" and cfg.CONTRASTIVE.KNN_ON:
@@ -613,10 +613,12 @@ def train(cfg):
     # Create meters.
     if cfg.DETECTION.ENABLE:
         train_meter = AVAMeter(len(train_loader), cfg, mode="train")
-        val_meter = AVAMeter(len(val_loader), cfg, mode="val")
+        # val_meter = AVAMeter(len(val_loader), cfg, mode="val")
+        val_meter = None
     else:
         train_meter = TrainMeter(len(train_loader), cfg)
-        val_meter = ValMeter(len(val_loader), cfg)
+        # val_meter = ValMeter(len(val_loader), cfg)
+        val_meter = None
 
     # set up writer for logging to Tensorboard format.
     if cfg.TENSORBOARD.ENABLE and du.is_master_proc(cfg.NUM_GPUS * cfg.NUM_SHARDS):

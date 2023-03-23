@@ -101,6 +101,10 @@ class Kinetics(torch.utils.data.Dataset):
         self.use_chunk_loading = True if self.mode in ["train"] and self.cfg.DATA.LOADER_CHUNK_SIZE > 0 else False
         self.dummy_output = None
 
+        # Uitaek added at 2023-03-21
+        self.dummy_frame = None
+        self.dummy_time_idx_decode = None
+
         # For training or validation mode, one single clip is sampled from every
         # video. For testing, NUM_ENSEMBLE_VIEWS clips are sampled from every
         # video. For every clip, NUM_SPATIAL_CROPS is cropped spatially from
@@ -128,7 +132,8 @@ class Kinetics(torch.utils.data.Dataset):
         Construct the video loader.
         """
         path_to_file = os.path.join(self.cfg.DATA.PATH_TO_DATA_DIR, "{}.csv".format(self.mode))
-        # print(path_to_file)
+        print("--------------->>>>>")
+        print(path_to_file)
         assert pathmgr.exists(path_to_file), "{} dir not found".format(path_to_file)
 
         self._path_to_videos = []
@@ -163,11 +168,16 @@ class Kinetics(torch.utils.data.Dataset):
                     self._labels.append(int(label))
                     self._spatial_temporal_idx.append(idx)
                     self._video_meta[clip_idx * self._num_clips + idx] = {}
-        assert len(self._path_to_videos) > 0, "Failed to load Kinetics split {} from {}".format(self._split_idx, path_to_file)
-        logger.info(
-            "Constructing kinetics dataloader (size: {} skip_rows {}) from {} ".format(len(self._path_to_videos), self.skip_rows, path_to_file)
+        assert len(self._path_to_videos) > 0, "Failed to load Kinetics split {} from {}".format(
+            self._split_idx, path_to_file
         )
-        server_address = "143.248.53.54:50051"
+        logger.info(
+            "Constructing kinetics dataloader (size: {} skip_rows {}) from {} ".format(
+                len(self._path_to_videos), self.skip_rows, path_to_file
+            )
+        )
+        # server_address = "143.248.53.54:50051"
+        server_address = "localhost:50051"
         global _worker_channel_singleton
         global _worker_stub_singleton
         _worker_channel_singleton = grpc.insecure_channel(
@@ -270,8 +280,8 @@ class Kinetics(torch.utils.data.Dataset):
             index, self._num_yielded = index
             if self.cfg.MULTIGRID.SHORT_CYCLE:
                 index, short_cycle_idx = index
-        # if self.dummy_output is not None:
-        #     return self.dummy_output
+        if self.dummy_output is not None:
+            return self.dummy_output
         if self.mode in ["train", "val"]:
             # -1 indicates random sampling.
             temporal_sample_index = -1
@@ -292,7 +302,11 @@ class Kinetics(torch.utils.data.Dataset):
             # spatial_sample_index is in [0, 1, 2]. Corresponding to left,
             # center, or right if width is larger than height, and top, middle,
             # or bottom if height is larger than width.
-            spatial_sample_index = (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS) if self.cfg.TEST.NUM_SPATIAL_CROPS > 1 else 1
+            spatial_sample_index = (
+                (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS)
+                if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
+                else 1
+            )
             min_scale, max_scale, crop_size = (
                 [self.cfg.DATA.TEST_CROP_SIZE] * 3
                 if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
@@ -322,12 +336,17 @@ class Kinetics(torch.utils.data.Dataset):
                 [None] * num_decode,
                 [None] * num_decode,
             )
-            # get video frames and information from server
-            filename = self._path_to_videos[index]
-            filename = os.path.splitext(os.path.basename(filename))[0]
+            if self.cfg.DATA.DUMMY_FRAMES and self.dummy_frame is not None:
+                frames = self.dummy_frame
+                time_idx = self.dummy_time_idx_decode
 
-            request_data = index, filename
-            frames, time_idx, tdiff = self._run_worker_query(request_data)
+            else:
+                # get video frames and information from server
+                filename = self._path_to_videos[index]
+                filename = os.path.splitext(os.path.basename(filename))[0]
+
+                request_data = index, filename
+                frames, time_idx, tdiff = self._run_worker_query(request_data)
 
             frames_decoded = frames
             time_idx_decoded = time_idx
@@ -344,6 +363,9 @@ class Kinetics(torch.utils.data.Dataset):
                 #     index = random.randint(0, len(self._path_to_videos) - 1)
                 continue
             # print(frames[0].shape, type(time_idx), time_idx.shape)
+            if self.dummy_frame is None:
+                self.dummy_frame = frames_decoded
+                self.dummy_time_idx_decode = time_idx_decoded
 
             num_aug = self.cfg.DATA.TRAIN_CROP_NUM_SPATIAL * self.cfg.AUG.NUM_SAMPLE if self.mode in ["train"] else 1
             num_out = num_aug * num_decode
