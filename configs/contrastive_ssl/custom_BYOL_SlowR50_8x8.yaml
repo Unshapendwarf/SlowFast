@@ -12,7 +12,7 @@ TRAIN:
   CHECKPOINT_ENABLE: False
   CHECKPOINT_PERIOD: 20
   AUTO_RESUME: True
-  BATCH_SIZE: 32
+  BATCH_SIZE: 64
 TEST:
   ENABLE: False
   DATASET: kinetics
@@ -44,7 +44,7 @@ CONTRASTIVE:
   # KNN_ON: False
 DATA:
   PATH_TO_DATA_DIR: "/home/hong/slowfast/index_files"
-  DUMMY_LOAD: True
+  DUMMY_LOAD: False
   NUM_FRAMES: 8
   SAMPLING_RATE: 8
   # NUM_FRAMES: 16 # dont forget to change these parameters in linear & finetuning configs
