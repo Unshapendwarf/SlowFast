@@ -2,7 +2,7 @@ TASK: ssl
 MEMCHECK:
   ENABLE: False
   DATASET: kinetics
-  BATCH_SIZE: 32
+  BATCH_SIZE: 64
   # ONLY_FIRST_50: True
 TRAIN:
   ENABLE: True
@@ -10,15 +10,15 @@ TRAIN:
   EVAL_ENABLE: False
   EVAL_PERIOD: 100
   CHECKPOINT_ENABLE: False
-  CHECKPOINT_PERIOD: 20
-  AUTO_RESUME: True
+  CHECKPOINT_PERIOD: 100
+  AUTO_RESUME: False
   BATCH_SIZE: 64
 TEST:
   ENABLE: False
   DATASET: kinetics
   BATCH_SIZE: 1
 DATA_LOADER:
-  NUM_WORKERS: 10
+  NUM_WORKERS: 16
   PIN_MEMORY: True
 MODEL:
   NUM_CLASSES: 256
@@ -45,6 +45,7 @@ CONTRASTIVE:
 DATA:
   PATH_TO_DATA_DIR: "/home/hong/slowfast/index_files"
   DUMMY_LOAD: False
+  DUMMY_FRAMES: True
   NUM_FRAMES: 8
   SAMPLING_RATE: 8
   # NUM_FRAMES: 16 # dont forget to change these parameters in linear & finetuning configs

@@ -832,6 +832,9 @@ _C.DATA.IN_VAL_CROP_RATIO = 0.875  # 224/256 = 0.875
 # _C.DATA.DUMMY_LOAD = True
 _C.DATA.DUMMY_LOAD = False
 
+# dummy decoded frames: no decoding, yes augm
+_C.DATA.DUMMY_FRAMES = False
+
 # ---------------------------------------------------------------------------- #
 # Optimizer options
 # ---------------------------------------------------------------------------- #
