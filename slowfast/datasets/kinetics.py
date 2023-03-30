@@ -279,6 +279,7 @@ class Kinetics(torch.utils.data.Dataset):
                 [None] * num_decode,
             )
             if self.cfg.DATA.DUMMY_FRAMES and self.dummy_frame is not None:
+                # print("dummy frames")
                 frames = self.dummy_frame
                 time_idx = self.dummy_time_idx_decode
             else:
@@ -300,7 +301,7 @@ class Kinetics(torch.utils.data.Dataset):
 
                 if self.mode in ["train"]:
                     assert len(min_scale) == len(max_scale) == len(crop_size) == num_decode
-                print(num_decode)
+                # print(num_decode)
                 target_fps = self.cfg.DATA.TARGET_FPS
                 if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
                     target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
@@ -372,11 +373,11 @@ class Kinetics(torch.utils.data.Dataset):
                     f_out[idx] = f_out[idx] / 255.0
                     # print(f_out[idx].shape)
                     
-                    # T H W C -> C T H W.
-                    f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
-                    f_out[idx], _ = transform.random_crop(f_out[idx], crop_size[i])
-                    f_out[idx] = f_out[idx].permute(1, 2, 3, 0)
-                    # print(f_out[idx].size())
+                    # # T H W C -> C T H W.
+                    # f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
+                    # f_out[idx], _ = transform.random_crop(f_out[idx], crop_size[i])
+                    # f_out[idx] = f_out[idx].permute(1, 2, 3, 0)
+                    # # print(f_out[idx].size())
 
                     # T H W C -> C T H W.
                     f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
