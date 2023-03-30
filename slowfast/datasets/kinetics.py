@@ -8,11 +8,12 @@ import pandas
 import torch
 import torch.utils.data
 from torchvision import transforms
-
+import copy
 import slowfast.utils.logging as logging
 from slowfast.utils.env import pathmgr
 
 import nvtx
+import time as TTT
 
 from . import decoder as decoder
 from . import transform as transform
@@ -81,6 +82,10 @@ class Kinetics(torch.utils.data.Dataset):
         # Uitaek added at 2023-03-21
         self.dummy_frame = None
 
+        # Uitaek added at 2023-03-21
+        self.dummy_frame = None
+        self.dummy_time_idx_decode = None
+
         # For training or validation mode, one single clip is sampled from every
         # video. For testing, NUM_ENSEMBLE_VIEWS clips are sampled from every
         # video. For every clip, NUM_SPATIAL_CROPS is cropped spatially from
@@ -108,7 +113,7 @@ class Kinetics(torch.utils.data.Dataset):
         Construct the video loader.
         """
         path_to_file = os.path.join(self.cfg.DATA.PATH_TO_DATA_DIR, "{}.csv".format(self.mode))
-        print("here is the path: "+path_to_file)
+        print("here is the path: " + path_to_file)
         assert pathmgr.exists(path_to_file), "{} dir not found".format(path_to_file)
 
         self._path_to_videos = []
@@ -324,6 +329,7 @@ class Kinetics(torch.utils.data.Dataset):
                 
             frames_decoded = frames
             time_idx_decoded = time_idx
+
             # print(f"in decode: {type(frames)} {frames[0].shape}, {type(time_idx_decoded)}, {time_idx_decoded[0].shape}")
             # print(time_idx_decoded)
             # print(frames_decoded[0].shape, len(time_idx_decoded))
@@ -355,7 +361,7 @@ class Kinetics(torch.utils.data.Dataset):
             # hong added below
             # if self.dummy_output is not None:
             #     return self.dummy_output
-            # print(num_decode, num_aug)
+            start_t = TTT.time()
             for i in range(num_decode):
                 for _ in range(num_aug):
                     idx += 1
@@ -366,6 +372,12 @@ class Kinetics(torch.utils.data.Dataset):
                     f_out[idx] = f_out[idx] / 255.0
                     # print(f_out[idx].shape)
                     
+                    # T H W C -> C T H W.
+                    f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
+                    f_out[idx], _ = transform.random_crop(f_out[idx], crop_size[i])
+                    f_out[idx] = f_out[idx].permute(1, 2, 3, 0)
+                    # print(f_out[idx].size())
+
                     # T H W C -> C T H W.
                     f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
                     f_out[idx], _ = transform.random_crop(f_out[idx], crop_size[i])
@@ -445,6 +457,7 @@ class Kinetics(torch.utils.data.Dataset):
             if self.cfg.DATA.DUMMY_LOAD:
                 if self.dummy_output is None:
                     self.dummy_output = (frames, label, index, time_idx, {})
+            # print(TTT.time() - start_t)
             return frames, label, index, time_idx, {}
         else:
             logger.warning("Failed to fetch video after {} retries.".format(self._num_retries))
