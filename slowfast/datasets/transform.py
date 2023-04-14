@@ -1065,11 +1065,11 @@ def color_jitter_video_ssl(
         color_jitter = tv.transforms.Compose(
             [
                 tv.transforms.ToPILImage(),
-                tv.transforms.RandomApply(
-                    [tv.transforms.ColorJitter(bri_con_sat[0], bri_con_sat[1], bri_con_sat[2], hue)],
-                    p=0.8,
-                ),
-                tv.transforms.RandomGrayscale(p=p_convert_gray),
+                # tv.transforms.RandomApply(
+                #     [tv.transforms.ColorJitter(bri_con_sat[0], bri_con_sat[1], bri_con_sat[2], hue)],
+                #     p=0.8,
+                # ),
+                # tv.transforms.RandomGrayscale(p=p_convert_gray),
                 tv.transforms.RandomApply([GaussianBlur([0.1, 2.0])], p=0.5),
                 tv.transforms.ToTensor(),
             ]
@@ -1085,6 +1085,7 @@ def color_jitter_video_ssl(
         )
 
     c, t, h, w = frames.shape
+    # frames = frames.view(c, t * h, w)
     frames = frames.contiguous().view(c, t * h, w)
     frames = color_jitter(frames)
     frames = frames.view(c, t, h, w)

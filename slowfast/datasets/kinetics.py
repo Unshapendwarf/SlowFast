@@ -78,6 +78,9 @@ class Kinetics(torch.utils.data.Dataset):
         self.skip_rows = self.cfg.DATA.SKIP_ROWS
         self.use_chunk_loading = True if self.mode in ["train"] and self.cfg.DATA.LOADER_CHUNK_SIZE > 0 else False
         self.dummy_output = None
+        
+        # Uitaek added at 2023-03-21
+        self.dummy_frame = None
 
         # Uitaek added at 2023-03-21
         self.dummy_frame = None
@@ -246,6 +249,7 @@ class Kinetics(torch.utils.data.Dataset):
         # decoded, repeatly find a random video replacement that can be decoded.
 
         for i_try in range(self._num_retries):
+
             video_container = None
             try:
                 video_container = container.get_video_container(
@@ -274,33 +278,34 @@ class Kinetics(torch.utils.data.Dataset):
                 [None] * num_decode,
                 [None] * num_decode,
             )
-
-            # for i in range(num_decode):
-            num_frames = [self.cfg.DATA.NUM_FRAMES]
-            sampling_rate = utils.get_random_sampling_rate(
-                self.cfg.MULTIGRID.LONG_CYCLE_SAMPLING_RATE,
-                self.cfg.DATA.SAMPLING_RATE,
-            )
-            sampling_rate = [sampling_rate]
-            if len(num_frames) < num_decode:
-                num_frames.extend([num_frames[-1] for i in range(num_decode - len(num_frames))])
-                # base case where keys have same frame-rate as query
-                sampling_rate.extend([sampling_rate[-1] for i in range(num_decode - len(sampling_rate))])
-            elif len(num_frames) > num_decode:
-                num_frames = num_frames[:num_decode]
-                sampling_rate = sampling_rate[:num_decode]
-
-            if self.mode in ["train"]:
-                assert len(min_scale) == len(max_scale) == len(crop_size) == num_decode
-
-            target_fps = self.cfg.DATA.TARGET_FPS
-            if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
-                target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
-
             if self.cfg.DATA.DUMMY_FRAMES and self.dummy_frame is not None:
+                # print("dummy frames")
                 frames = self.dummy_frame
                 time_idx = self.dummy_time_idx_decode
             else:
+            
+                # for i in range(num_decode):
+                num_frames = [self.cfg.DATA.NUM_FRAMES]
+                sampling_rate = utils.get_random_sampling_rate(
+                    self.cfg.MULTIGRID.LONG_CYCLE_SAMPLING_RATE,
+                    self.cfg.DATA.SAMPLING_RATE,
+                )
+                sampling_rate = [sampling_rate]
+                if len(num_frames) < num_decode:
+                    num_frames.extend([num_frames[-1] for i in range(num_decode - len(num_frames))])
+                    # base case where keys have same frame-rate as query
+                    sampling_rate.extend([sampling_rate[-1] for i in range(num_decode - len(sampling_rate))])
+                elif len(num_frames) > num_decode:
+                    num_frames = num_frames[:num_decode]
+                    sampling_rate = sampling_rate[:num_decode]
+
+                if self.mode in ["train"]:
+                    assert len(min_scale) == len(max_scale) == len(crop_size) == num_decode
+                # print(num_decode)
+                target_fps = self.cfg.DATA.TARGET_FPS
+                if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
+                    target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
+
                 # Decode video. Meta info is used to perform selective decoding.
                 frames, time_idx, tdiff = decoder.decode(
                     video_container,
@@ -322,6 +327,7 @@ class Kinetics(torch.utils.data.Dataset):
                     min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
                     max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
                 )
+                
             frames_decoded = frames
             time_idx_decoded = time_idx
 
@@ -346,7 +352,7 @@ class Kinetics(torch.utils.data.Dataset):
             if self.dummy_frame is None:
                 self.dummy_frame = frames_decoded
                 self.dummy_time_idx_decode = time_idx_decoded
-
+            
             num_aug = self.cfg.DATA.TRAIN_CROP_NUM_SPATIAL * self.cfg.AUG.NUM_SAMPLE if self.mode in ["train"] else 1
             num_out = num_aug * num_decode
             f_out, time_idx_out = [None] * num_out, [None] * num_out
@@ -366,6 +372,12 @@ class Kinetics(torch.utils.data.Dataset):
                     f_out[idx] = f_out[idx].float()
                     f_out[idx] = f_out[idx] / 255.0
                     # print(f_out[idx].shape)
+                    
+                    # # T H W C -> C T H W.
+                    # f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
+                    # f_out[idx], _ = transform.random_crop(f_out[idx], crop_size[i])
+                    # f_out[idx] = f_out[idx].permute(1, 2, 3, 0)
+                    # # print(f_out[idx].size())
 
                     # T H W C -> C T H W.
                     f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
