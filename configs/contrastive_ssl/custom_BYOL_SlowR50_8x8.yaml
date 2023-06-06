@@ -2,7 +2,7 @@ TASK: ssl
 MEMCHECK:
   ENABLE: False
   DATASET: kinetics
-  BATCH_SIZE: 8
+  BATCH_SIZE: 64
   # ONLY_FIRST_50: True
 TRAIN:
   ENABLE: True
@@ -46,7 +46,7 @@ DATA:
   PATH_TO_DATA_DIR: "/home/hong/slowfast/index_files"
   DUMMY_LOAD: False
   DUMMY_FRAMES: True
-  NUM_FRAMES: 8
+  NUM_FRAMES: 1
   SAMPLING_RATE: 8
   # NUM_FRAMES: 16 # dont forget to change these parameters in linear & finetuning configs
   # SAMPLING_RATE: 4
