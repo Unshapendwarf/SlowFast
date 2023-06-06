@@ -45,7 +45,7 @@ CONTRASTIVE:
 DATA:
   PATH_TO_DATA_DIR: "/home/hong/slowfast/index_files"
   DUMMY_LOAD: False
-  DUMMY_FRAMES: False
+  DUMMY_FRAMES: True
   NUM_FRAMES: 8
   SAMPLING_RATE: 8
   # NUM_FRAMES: 16 # dont forget to change these parameters in linear & finetuning configs

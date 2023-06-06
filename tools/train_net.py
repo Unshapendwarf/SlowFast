@@ -140,9 +140,9 @@ def train_epoch(
                     else:
                         meta[key] = val.cuda(non_blocking=True)
 
-            # etimer = TT.time()
+            etime = TT.time()
             midtime = etime - stime
-            # stimer = etimer
+            stime = etime
 
             # batch_size = inputs[0][0].size(0) if isinstance(inputs[0], list) else inputs[0].size(0)
             # Update the learning rate.
@@ -260,9 +260,7 @@ def train_epoch(
                     top1_err, top5_err = [(1.0 - x / preds.size(0)) * 100.0 for x in num_topks_correct]
                     # Gather all the predictions across all the devices.
                     if cfg.NUM_GPUS > 1:
-                        loss, grad_norm, top1_err, top5_err = du.all_reduce(
-                            [loss.detach(), grad_norm, top1_err, top5_err]
-                        )
+                        loss, grad_norm, top1_err, top5_err = du.all_reduce([loss.detach(), grad_norm, top1_err, top5_err])
 
                     # Copy the stats from GPU to CPU (sync point).
                     loss, grad_norm, top1_err, top5_err = (
@@ -279,8 +277,7 @@ def train_epoch(
                     loss,
                     lr,
                     grad_norm,
-                    batch_size
-                    * max(cfg.NUM_GPUS, 1),  # If running  on CPU (cfg.NUM_GPUS == 1), use 1 to represent 1 CPU.
+                    batch_size * max(cfg.NUM_GPUS, 1),  # If running  on CPU (cfg.NUM_GPUS == 1), use 1 to represent 1 CPU.
                     loss_extra,
                 )
                 # write to tensorboard format if available.
@@ -416,8 +413,7 @@ def eval_epoch(val_loader, model, val_meter, cur_epoch, cfg, train_loader, write
                 val_meter.update_stats(
                     top1_err,
                     top5_err,
-                    batch_size
-                    * max(cfg.NUM_GPUS, 1),  # If running  on CPU (cfg.NUM_GPUS == 1), use 1 to represent 1 CPU.
+                    batch_size * max(cfg.NUM_GPUS, 1),  # If running  on CPU (cfg.NUM_GPUS == 1), use 1 to represent 1 CPU.
                 )
                 # write to tensorboard format if available.
                 if writer is not None:

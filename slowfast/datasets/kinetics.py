@@ -159,22 +159,16 @@ class Kinetics(torch.utils.data.Dataset):
                 elif len(fetch_info) == 1:
                     path, label = fetch_info[0], 0
                 else:
-                    raise RuntimeError(
-                        "Failed to parse video fetch {} info {} retries.".format(path_to_file, fetch_info)
-                    )
+                    raise RuntimeError("Failed to parse video fetch {} info {} retries.".format(path_to_file, fetch_info))
                 for idx in range(self._num_clips):
                     self._path_to_videos.append(os.path.join(self.cfg.DATA.PATH_PREFIX, path))
                     # self._labels.append(label)
                     self._labels.append(int(label))
                     self._spatial_temporal_idx.append(idx)
                     self._video_meta[clip_idx * self._num_clips + idx] = {}
-        assert len(self._path_to_videos) > 0, "Failed to load Kinetics split {} from {}".format(
-            self._split_idx, path_to_file
-        )
+        assert len(self._path_to_videos) > 0, "Failed to load Kinetics split {} from {}".format(self._split_idx, path_to_file)
         logger.info(
-            "Constructing kinetics dataloader (size: {} skip_rows {}) from {} ".format(
-                len(self._path_to_videos), self.skip_rows, path_to_file
-            )
+            "Constructing kinetics dataloader (size: {} skip_rows {}) from {} ".format(len(self._path_to_videos), self.skip_rows, path_to_file)
         )
         # server_address = "143.248.53.54:50051"
         server_address = "localhost:50051"
@@ -219,9 +213,7 @@ class Kinetics(torch.utils.data.Dataset):
         index, imgname = get_tuple
         # print(f"send {imgname}, ", end="")
 
-        response: data_feed_pb2.Sample = _worker_stub_singleton.get_sample(
-            data_feed_pb2.Config(index=index, filename=imgname)
-        )
+        response: data_feed_pb2.Sample = _worker_stub_singleton.get_sample(data_feed_pb2.Config(index=index, filename=imgname))
 
         num_fr, size_fr = response.num_fr, response.size_fr
 
@@ -290,9 +282,7 @@ class Kinetics(torch.utils.data.Dataset):
             max_scale = self.cfg.DATA.TRAIN_JITTER_SCALES[1]
             crop_size = self.cfg.DATA.TRAIN_CROP_SIZE
             if short_cycle_idx in [0, 1]:
-                crop_size = int(
-                    round(self.cfg.MULTIGRID.SHORT_CYCLE_FACTORS[short_cycle_idx] * self.cfg.MULTIGRID.DEFAULT_S)
-                )
+                crop_size = int(round(self.cfg.MULTIGRID.SHORT_CYCLE_FACTORS[short_cycle_idx] * self.cfg.MULTIGRID.DEFAULT_S))
             if self.cfg.MULTIGRID.DEFAULT_S > 0:
                 # Decreasing the scale is equivalent to using a larger "span"
                 # in a sampling grid.
@@ -302,11 +292,7 @@ class Kinetics(torch.utils.data.Dataset):
             # spatial_sample_index is in [0, 1, 2]. Corresponding to left,
             # center, or right if width is larger than height, and top, middle,
             # or bottom if height is larger than width.
-            spatial_sample_index = (
-                (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS)
-                if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
-                else 1
-            )
+            spatial_sample_index = (self._spatial_temporal_idx[index] % self.cfg.TEST.NUM_SPATIAL_CROPS) if self.cfg.TEST.NUM_SPATIAL_CROPS > 1 else 1
             min_scale, max_scale, crop_size = (
                 [self.cfg.DATA.TEST_CROP_SIZE] * 3
                 if self.cfg.TEST.NUM_SPATIAL_CROPS > 1
@@ -354,9 +340,7 @@ class Kinetics(torch.utils.data.Dataset):
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
             if frames_decoded is None or None in frames_decoded:
-                logger.warning(
-                    "Failed to decode video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try)
-                )
+                logger.warning("Failed to decode video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try))
                 index = random.randint(0, len(self._path_to_videos) - 1)
                 # if self.mode not in ["test"] and (i_try % (self._num_retries // 8)) == 0:
                 #     # let's try another one
