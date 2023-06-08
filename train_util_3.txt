@@ -1,0 +1,11 @@
+PID: 3886642==> %CPU %MEM CMD 853 2.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+PID: 3887240==> %CPU %MEM CMD 25.7 1.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+PID: 3887352==> %CPU %MEM CMD 26.5 1.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+PID: 3887464==> %CPU %MEM CMD 26.3 1.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+PID: 3887576==> %CPU %MEM CMD 26.1 1.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+PID: 3887688==> %CPU %MEM CMD 25.3 1.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+PID: 3887800==> %CPU %MEM CMD 25.8 1.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+PID: 3887912==> %CPU %MEM CMD 27.4 1.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+PID: 3888024==> %CPU %MEM CMD 25.3 1.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+PID: 3888136==> %CPU %MEM CMD 26.3 1.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+PID: 3888254==> %CPU %MEM CMD 20.6 1.8 /home/hong/miniconda3/envs/slow/bin/python tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
