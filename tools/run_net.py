@@ -16,7 +16,7 @@ from visualization import visualize
 
 import warnings
 
-# warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore")
 
 
 def main():

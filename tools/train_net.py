@@ -27,6 +27,8 @@ from slowfast.models.contrastive import (
 from slowfast.utils.meters import AVAMeter, EpochTimer, TrainMeter, ValMeter
 from slowfast.utils.multigrid import MultigridSchedule
 
+from tqdm import tqdm
+
 # import nvtx
 
 logger = logging.get_logger(__name__)
@@ -85,7 +87,7 @@ def train_epoch(
 
     else:
         stime = TT.time()
-        for cur_iter, (inputs, labels, index, time, meta) in enumerate(train_loader):
+        for cur_iter, (inputs, labels, index, time, meta) in enumerate(tqdm(train_loader)):
             # Transfer the data to the current GPU device.
             batch_size = inputs[0][0].size(0) if isinstance(inputs[0], list) else inputs[0].size(0)
             # if cur_iter > 400 // batch_size + 1:
@@ -692,17 +694,17 @@ def train(cfg):
 
         epoch_timer.epoch_toc()
         logger.info(
-            f"Epoch {cur_epoch} takes {epoch_timer.last_epoch_time():.2f}s. Epochs "
-            f"from {start_epoch} to {cur_epoch} take "
-            f"{epoch_timer.avg_epoch_time():.2f}s in average and "
-            f"{epoch_timer.median_epoch_time():.2f}s in median."
+            f"Epoch {cur_epoch} takes {epoch_timer.last_epoch_time():.2f}s."
+            # f"Epochs from {start_epoch} to {cur_epoch} take "
+            # f"{epoch_timer.avg_epoch_time():.2f}s in average and "
+            # f"{epoch_timer.median_epoch_time():.2f}s in median."
         )
-        logger.info(
-            f"For epoch {cur_epoch}, each iteraction takes "
-            f"{epoch_timer.last_epoch_time()/len(train_loader):.2f}s in average. "
-            f"From epoch {start_epoch} to {cur_epoch}, each iteraction takes "
-            f"{epoch_timer.avg_epoch_time()/len(train_loader):.2f}s in average."
-        )
+        # logger.info(
+        #     f"For epoch {cur_epoch}, each iteraction takes "
+        #     f"{epoch_timer.last_epoch_time()/len(train_loader):.2f}s in average. "
+        #     f"From epoch {start_epoch} to {cur_epoch}, each iteraction takes "
+        #     f"{epoch_timer.avg_epoch_time()/len(train_loader):.2f}s in average."
+        # )
 
         is_checkp_epoch = (
             cu.is_checkpoint_epoch(

@@ -132,7 +132,7 @@ class Kinetics(torch.utils.data.Dataset):
         Construct the video loader.
         """
         path_to_file = os.path.join(self.cfg.DATA.PATH_TO_DATA_DIR, "{}.csv".format(self.mode))
-        print("--------------->>>>>")
+        print("--------------->>>>>\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n")
         print(path_to_file)
         assert pathmgr.exists(path_to_file), "{} dir not found".format(path_to_file)
 
@@ -188,8 +188,8 @@ class Kinetics(torch.utils.data.Dataset):
             _worker_stub_singleton = data_feed_pb2_grpc.DataFeedStub(_worker_channel_singleton)
         except grpc.RpcError as e:
             logger.error("Error creating stub: {}".format(e.details()))
-        else:
-            print("init done")
+        # else:
+        # print("init done")
         # print(type(_worker_channel_singleton)
         # atexit.register(_shutdown_worker)
 
