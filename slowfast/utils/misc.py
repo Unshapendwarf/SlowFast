@@ -22,6 +22,10 @@ from slowfast.datasets.utils import pack_pathway_output
 from slowfast.models.batchnorm_helper import SubBatchNorm3d
 from slowfast.utils.env import pathmgr
 
+import warnings
+
+warnings.filterwarnings("ignore")
+
 logger = logging.get_logger(__name__)
 
 
@@ -182,15 +186,13 @@ def log_model_info(model, cfg, use_train_input=True):
         use_train_input (bool): if True, log info for training. Otherwise,
             log info for testing.
     """
-    logger.info("Model:\n{}".format(model))
+    # logger.info("Model:\n{}".format(model))
     params = params_count(model)
     logger.info("Params: {:,}".format(params))
     logger.info("Mem: {:,} MB".format(gpu_mem_usage()))
     flops = get_model_stats(model, cfg, "flop", use_train_input)
     logger.info("Flops: {:,} G".format(flops))
-    logger.info(
-        "Activations: {:,} M".format(get_model_stats(model, cfg, "activation", use_train_input))
-    )
+    logger.info("Activations: {:,} M".format(get_model_stats(model, cfg, "activation", use_train_input)))
     logger.info("nvidia-smi")
     os.system("nvidia-smi")
     return flops, params
@@ -295,9 +297,7 @@ def plot_input_normed(
         elif tensor.ndim == 5:
             nrow = tensor.shape[1]
             tensor = tensor.reshape(shape=(-1, tensor.shape[2], tensor.shape[3], tensor.shape[4]))
-        vis2 = (
-            make_grid(tensor, padding=8, pad_value=1.0, nrow=nrow).permute(1, 2, 0).cpu().numpy()
-        )
+        vis2 = make_grid(tensor, padding=8, pad_value=1.0, nrow=nrow).permute(1, 2, 0).cpu().numpy()
         plt.imsave(fname=path, arr=vis2, format="png")
     else:
         f, ax = plt.subplots(
@@ -464,9 +464,7 @@ def get_class_names(path, parent_path=None, subset_path=None):
         try:
             with pathmgr.open(subset_path, "r") as f:
                 subset = f.read().split("\n")
-                subset_ids = [
-                    class2idx[name] for name in subset if class2idx.get(name) is not None
-                ]
+                subset_ids = [class2idx[name] for name in subset if class2idx.get(name) is not None]
         except EnvironmentError as err:
             print("Fail to load file from {} with error {}".format(subset_path, err))
             return

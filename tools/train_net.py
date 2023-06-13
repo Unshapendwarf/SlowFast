@@ -90,7 +90,7 @@ def train_epoch(
             batch_size = inputs[0][0].size(0) if isinstance(inputs[0], list) else inputs[0].size(0)
             # if cur_iter > 400 // batch_size + 1:
             #     break
-            print(len(inputs), len(inputs[0]), inputs[0][0].shape)
+            # print(len(inputs), len(inputs[0]), inputs[0][0].shape)
             # for k, u_idx in enumerate(index.tolist()):
             #     # time(pts) info sample
             #     for u_start_n_end in time[k]:
@@ -293,7 +293,7 @@ def train_epoch(
                     )
 
             etime = TT.time()
-            print(midtime, etime - stime)
+            # print(midtime, etime - stime)
             stime = etime
 
             train_meter.iter_toc()  # do measure allreduce for this meter
@@ -487,8 +487,8 @@ def build_trainer(cfg):
     """
     # Build the video model and print model statistics.
     model = build_model(cfg)
-    if du.is_master_proc() and cfg.LOG_MODEL_INFO:
-        flops, params = misc.log_model_info(model, cfg, use_train_input=True)
+    # if du.is_master_proc() and cfg.LOG_MODEL_INFO:
+    #     flops, params = misc.log_model_info(model, cfg, use_train_input=True)
 
     # Construct the optimizer.
     optimizer = optim.construct_optimizer(model, cfg)
@@ -542,8 +542,8 @@ def train(cfg):
     # Build the video model and print model statistics.
     model = build_model(cfg)
     flops, params = 0.0, 0.0
-    if du.is_master_proc() and cfg.LOG_MODEL_INFO:
-        flops, params = misc.log_model_info(model, cfg, use_train_input=True)
+    # if du.is_master_proc() and cfg.LOG_MODEL_INFO:
+    #     flops, params = misc.log_model_info(model, cfg, use_train_input=True)
 
     # Construct the optimizer.
     optimizer = optim.construct_optimizer(model, cfg)

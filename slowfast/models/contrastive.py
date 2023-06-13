@@ -53,9 +53,7 @@ class ContrastiveModel(nn.Module):
         self.knn_on = cfg.CONTRASTIVE.KNN_ON
         self.train_labels = np.zeros((0,), dtype=np.int32)
         self.num_pos = 2
-        self.num_crops = (
-            self.cfg.DATA.TRAIN_CROP_NUM_TEMPORAL * self.cfg.DATA.TRAIN_CROP_NUM_SPATIAL
-        )
+        self.num_crops = self.cfg.DATA.TRAIN_CROP_NUM_TEMPORAL * self.cfg.DATA.TRAIN_CROP_NUM_SPATIAL
         self.nce_loss_fun = losses.get_loss_func("contrastive_loss")(reduction="mean")
         assert self.cfg.MODEL.LOSS_FUNC == "contrastive_loss"
         self.softmax = nn.Softmax(dim=1).cuda()
@@ -84,21 +82,14 @@ class ContrastiveModel(nn.Module):
             )
             self.register_buffer("iter", torch.zeros([1], dtype=torch.long))
             self._batch_shuffle_on = (
-                False
-                if ("sync" in cfg.BN.NORM_TYPE and cfg.BN.NUM_SYNC_DEVICES == cfg.NUM_GPUS)
-                or self.type == "byol"
-                else True
+                False if ("sync" in cfg.BN.NORM_TYPE and cfg.BN.NUM_SYNC_DEVICES == cfg.NUM_GPUS) or self.type == "byol" else True
             )
         elif self.type == "swav":
             self.swav_use_public_code = True
             if self.swav_use_public_code:
-                self.swav_prototypes = nn.Linear(
-                    self.dim, 1000, bias=False
-                )  # for orig implementation
+                self.swav_prototypes = nn.Linear(self.dim, 1000, bias=False)  # for orig implementation
             else:
-                self.swav_prototypes = nn.Parameter(
-                    torch.randn((self.dim, 1000), dtype=torch.float)
-                )
+                self.swav_prototypes = nn.Parameter(torch.randn((self.dim, 1000), dtype=torch.float))
             self.swav_eps_sinkhorn = 0.05
             self.swav_use_the_queue = False
             # optionally starts a queue
@@ -145,11 +136,11 @@ class ContrastiveModel(nn.Module):
 
         self.train_labels = torch.LongTensor(self.train_labels).cuda()
         if self.length != self.num_imgs:
-            logger.error(
-                "Kinetics dataloader size: {} differs from memorybank length {}".format(
-                    self.num_imgs, self.length
-                )
-            )
+            # logger.error(
+            #     "Kinetics dataloader size: {} differs from memorybank length {}".format(
+            #         self.num_imgs, self.length
+            #     )
+            # )
             self.knn_mem.resize(self.num_imgs, 1, self.dim)
 
     @torch.no_grad()
@@ -247,12 +238,7 @@ class ContrastiveModel(nn.Module):
 
     @torch.no_grad()
     def momentum_anneal_cosine(self, epoch_exact):
-        self.mmt = (
-            1
-            - (1 - self.cfg.CONTRASTIVE.MOMENTUM)
-            * (math.cos(math.pi * epoch_exact / self.cfg.SOLVER.MAX_EPOCH) + 1.0)
-            * 0.5
-        )
+        self.mmt = 1 - (1 - self.cfg.CONTRASTIVE.MOMENTUM) * (math.cos(math.pi * epoch_exact / self.cfg.SOLVER.MAX_EPOCH) + 1.0) * 0.5
 
     @torch.no_grad()
     def _dequeue_and_enqueue(self, keys, extra_keys=None):
@@ -305,11 +291,7 @@ class ContrastiveModel(nn.Module):
             batched_inference = False  # hack to avoid oom on large inputs
         assert n_clips > 0
         if batched_inference and all(
-            [
-                clips_k[i][j].shape[1:] == clips_k[0][j].shape[1:]
-                for i in range(len(clips_k))
-                for j in range(len(clips_k[i]))
-            ]
+            [clips_k[i][j].shape[1:] == clips_k[0][j].shape[1:] for i in range(len(clips_k)) for j in range(len(clips_k[i]))]
         ):
             clips_k = [self.batch_clips(clips_k)]
             batched = True
@@ -381,9 +363,7 @@ class ContrastiveModel(nn.Module):
 
             if self.mem_type == "2d":
                 if self.interp:
-                    time_ind = (
-                        torch.empty(batch_size, self.k + 1).uniform_(0, self.duration - 1).cuda()
-                    )
+                    time_ind = torch.empty(batch_size, self.k + 1).uniform_(0, self.duration - 1).cuda()
                 else:
                     time_ind = torch.randint(
                         0,
@@ -403,9 +383,7 @@ class ContrastiveModel(nn.Module):
                 # Diff clip from same video are positive.
                 pass
             else:
-                raise NotImplementedError(
-                    "unsupported examplar_type {}".format(self.examplar_type)
-                )
+                raise NotImplementedError("unsupported examplar_type {}".format(self.examplar_type))
             k = self.memory.get(clip_ind, time_ind, self.interp)
             # q: N x C, k: N x K x C
             prod = torch.einsum("nc,nkc->nk", q, k)
@@ -425,9 +403,7 @@ class ContrastiveModel(nn.Module):
                 clips_k = [clips[i] for i in ind_clips[1:]]
                 # rearange time
                 time_q = time[:, ind_clips[0], :]
-                time_k = (
-                    time[:, ind_clips[1:], :] if keys is None else time[:, ind_clips[0] + 1 :, :]
-                )
+                time_k = time[:, ind_clips[1:], :] if keys is None else time[:, ind_clips[0] + 1 :, :]
             else:
                 clip_q = clips
 
@@ -525,9 +501,7 @@ class ContrastiveModel(nn.Module):
             else:
                 if batch_clips:
                     bs = predictors[0].shape[0] // 2
-                    loss_reg = self.sim_loss(
-                        predictors[0][:bs, :], keys[0][bs:, :]
-                    ) + self.sim_loss(predictors[0][bs:, :], keys[0][:bs, :])
+                    loss_reg = self.sim_loss(predictors[0][:bs, :], keys[0][bs:, :]) + self.sim_loss(predictors[0][bs:, :], keys[0][:bs, :])
                     q_knn = q_knn[:bs, :]
                     del clips_batched[0]
                 else:
@@ -597,9 +571,7 @@ class ContrastiveModel(nn.Module):
                     with torch.no_grad():
                         out = output[bs * crop_id : bs * (crop_id + 1)]
                         if self.cfg.CONTRASTIVE.SWAV_QEUE_LEN > 0 and epoch_exact >= 15.0:
-                            if self.swav_use_the_queue or not torch.all(
-                                self.queue_swav[i, -1, :] == 0
-                            ):
+                            if self.swav_use_the_queue or not torch.all(self.queue_swav[i, -1, :] == 0):
                                 self.swav_use_the_queue = True
                                 out = torch.cat(
                                     (
@@ -614,11 +586,7 @@ class ContrastiveModel(nn.Module):
                             self.queue_swav[i, :bs] = embedding[crop_id * bs : (crop_id + 1) * bs]
                         q = out / self.swav_eps_sinkhorn
                         q = torch.exp(q).t()
-                        q = (
-                            self.distributed_sinkhorn(q, 3)[-bs:]
-                            if self.cfg.NUM_SHARDS > 1
-                            else self.sinkhorn(q.t(), 3)[-bs:]
-                        )
+                        q = self.distributed_sinkhorn(q, 3)[-bs:] if self.cfg.NUM_SHARDS > 1 else self.sinkhorn(q.t(), 3)[-bs:]
                     subloss = 0
                     for v in np.delete(np.arange(n_clips), crop_id):
                         p = self.softmax(output[bs * v : bs * (v + 1)] / self.T)
@@ -712,9 +680,7 @@ class ContrastiveModel(nn.Module):
                 # [2*B, 2*B]
                 sim_matrix = torch.exp(torch.mm(out, out.t().contiguous()) / self.T)
                 # SANITY:
-                mask = (
-                    torch.ones_like(sim_matrix) - torch.eye(out.shape[0], device=sim_matrix.device)
-                ).bool()
+                mask = (torch.ones_like(sim_matrix) - torch.eye(out.shape[0], device=sim_matrix.device)).bool()
                 # [2*B, 2*B-1]
                 sim_matrix = sim_matrix.masked_select(mask).view(out.shape[0], -1)
                 # compute loss
@@ -753,9 +719,7 @@ class ContrastiveModel(nn.Module):
             pos_temp, neg_temp = [], []
             for i in range(world_size):
                 if i == rank:
-                    pos = np.eye(local_crops, k=d * local_orig_images) + np.eye(
-                        local_crops, k=-local_crops + d * local_orig_images
-                    )
+                    pos = np.eye(local_crops, k=d * local_orig_images) + np.eye(local_crops, k=-local_crops + d * local_orig_images)
                     neg = np.ones((local_crops, local_crops))
                 else:
                     pos = np.zeros((local_crops, local_crops))
@@ -883,9 +847,7 @@ class Memory(nn.Module):
         self.dim = dim
         stdv = 1.0 / math.sqrt(dim / 3)
         del self.memory
-        self.memory = (
-            torch.rand(length, duration, dim, device=self.device).mul_(2 * stdv).add_(-stdv).cuda()
-        )
+        self.memory = torch.rand(length, duration, dim, device=self.device).mul_(2 * stdv).add_(-stdv).cuda()
 
     def get(self, ind, time, interp=False):
         batch_size = ind.size(0)
@@ -993,11 +955,7 @@ class Memory1D(nn.Module):
 def contrastive_parameter_surgery(model, cfg, epoch_exact, cur_iter):
 
     # cancel some gradients in first epoch of SwAV
-    if (
-        cfg.MODEL.MODEL_NAME == "ContrastiveModel"
-        and cfg.CONTRASTIVE.TYPE == "swav"
-        and epoch_exact <= 1.0
-    ):
+    if cfg.MODEL.MODEL_NAME == "ContrastiveModel" and cfg.CONTRASTIVE.TYPE == "swav" and epoch_exact <= 1.0:
         for name, p in model.named_parameters():
             if "swav_prototypes" in name:
                 p.grad = None

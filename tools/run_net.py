@@ -14,6 +14,10 @@ from train_net import train
 from memchecker import memcheck
 from visualization import visualize
 
+import warnings
+
+# warnings.filterwarnings("ignore")
+
 
 def main():
     """
@@ -44,14 +48,13 @@ def main():
                 launch_job(cfg=cfg, init_method=args.init_method, func=test)
 
         # Perform model visualization.
-        if cfg.TENSORBOARD.ENABLE and (
-            cfg.TENSORBOARD.MODEL_VIS.ENABLE or cfg.TENSORBOARD.WRONG_PRED_VIS.ENABLE
-        ):
+        if cfg.TENSORBOARD.ENABLE and (cfg.TENSORBOARD.MODEL_VIS.ENABLE or cfg.TENSORBOARD.WRONG_PRED_VIS.ENABLE):
             launch_job(cfg=cfg, init_method=args.init_method, func=visualize)
 
         # Run demo.
         if cfg.DEMO.ENABLE:
             demo(cfg)
+
 
 if __name__ == "__main__":
     main()
