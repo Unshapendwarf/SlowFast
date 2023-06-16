@@ -87,7 +87,10 @@ def train_epoch(
 
     else:
         stime = TT.time()
-        for cur_iter, (inputs, labels, index, time, meta) in enumerate(tqdm(train_loader)):
+        for cur_iter, (inputs, labels, index, time, meta) in enumerate(
+            tqdm(train_loader, bar_format="{bar}{n_fmt}/{total_fmt} [{elapsed}<{remaining}] {rate_noinv_fmt}")
+        ):
+
             # Transfer the data to the current GPU device.
             batch_size = inputs[0][0].size(0) if isinstance(inputs[0], list) else inputs[0].size(0)
             # if cur_iter > 400 // batch_size + 1:
