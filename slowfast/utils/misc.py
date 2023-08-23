@@ -183,6 +183,7 @@ def log_model_info(model, cfg, use_train_input=True):
             log info for testing.
     """
     # logger.info("Model:\n{}".format(model))
+    logger.info("Model:\n{}".format("Pass logging models data - too long"))
     params = params_count(model)
     logger.info("Params: {:,}".format(params))
     logger.info("Mem: {:,} MB".format(gpu_mem_usage()))

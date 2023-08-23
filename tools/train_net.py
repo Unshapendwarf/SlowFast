@@ -79,7 +79,7 @@ def train_epoch(
     import time as TT
 
     if cfg.DALI_ENABLE:
-        print("DALI loader for training -> EXIT")
+        logger.debug("DALI loader -> EXIT")
         return
 
     else:
@@ -297,7 +297,8 @@ def train_epoch(
                     )
 
             etime = TT.time()
-            print(f"dataload+preprocess: {midtime}, train: {etime - stime}")
+            
+            logger.info(f"dataload+preprocess: {midtime}, train: {etime - stime}")
             stime = etime
 
             train_meter.iter_toc()  # do measure allreduce for this meter
@@ -493,7 +494,8 @@ def build_trainer(cfg):
     # Build the video model and print model statistics.
     model = build_model(cfg)
     if du.is_master_proc() and cfg.LOG_MODEL_INFO:
-        flops, params = misc.log_model_info(model, cfg, use_train_input=True)
+        pass
+        # flops, params = misc.log_model_info(model, cfg, use_train_input=True) 
 
     # Construct the optimizer.
     optimizer = optim.construct_optimizer(model, cfg)
@@ -599,7 +601,8 @@ def train(cfg):
         start_epoch = checkpoint_epoch + 1
     else:
         start_epoch = 0
-    print(f"start_epoch is {start_epoch}")
+    # logger.debug(f"start_epoch is {start_epoch}")
+    
     start_epoch = 0 # always start newly
     # Create the video train and val loaders.
     train_loader = loader.construct_loader(cfg, "train")
@@ -701,7 +704,7 @@ def train(cfg):
             )
 
         else:
-            print("start epoch is done")
+            logger.info("Start epoch is done.")
         is_checkp_epoch = (
             cu.is_checkpoint_epoch(
                 cfg,

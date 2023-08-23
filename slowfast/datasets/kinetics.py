@@ -115,7 +115,7 @@ class Kinetics(torch.utils.data.Dataset):
         Construct the video loader.
         """
         path_to_file = os.path.join(self.cfg.DATA.PATH_TO_DATA_DIR, "{}.csv".format(self.mode))
-        print("here is the path: " + path_to_file)
+        logger.debug("here is the path: " + path_to_file)
         assert pathmgr.exists(path_to_file), "{} dir not found".format(path_to_file)
 
         self._path_to_videos = []
@@ -135,7 +135,6 @@ class Kinetics(torch.utils.data.Dataset):
                 fetch_info = path_label.split(self.cfg.DATA.PATH_LABEL_SEPARATOR)
                 if len(fetch_info) == 2:
                     path, label = fetch_info
-                    # print(label)
                 elif len(fetch_info) == 3:
                     path, fn, label = fetch_info
                 elif len(fetch_info) == 1:
@@ -258,7 +257,7 @@ class Kinetics(torch.utils.data.Dataset):
                 [None] * num_decode,
             )
             if self.cfg.DATA.DUMMY_FRAMES and self.dummy_frame is not None:
-                # print("dummy frames")
+                logger.debug("Loading DUMMY_FRAMES...")
                 frames = self.dummy_frame
                 time_idx = self.dummy_time_idx_decode
             else:
@@ -311,14 +310,11 @@ class Kinetics(torch.utils.data.Dataset):
                 #     if os.path.exists(u_file):
                 #         os.remove(u_file)
                 #     else:
-                #         print("error to remove" + u_file)
+                #         logger.debug("error to remove" + u_file)
                     
             frames_decoded = ret_frames
             time_idx_decoded = ret_st
 
-            # print(f"in decode: {type(frames)} {frames[0].shape}, {type(time_idx_decoded)}, {time_idx_decoded[0].shape}")
-            # print(time_idx_decoded)
-            # print(frames_decoded[0].shape, len(time_idx_decoded))
 
             # If decoding failed (wrong format, video is too short, and etc),
             # select another video.
@@ -326,13 +322,12 @@ class Kinetics(torch.utils.data.Dataset):
                 logger.warning(
                     "Failed to decode video idx {} from {}; trial {}".format(index, self._path_to_videos[index], i_try)
                 )
-                print(f"num_retries: {self._num_retries}")
+                logger.info(f"num_retries: {self._num_retries}")
                 index = random.randint(0, len(self._path_to_videos) - 1)
                 # if self.mode not in ["test"] and (i_try % (self._num_retries // 8)) == 0:
                 #     # let's try another one
                 #     index = random.randint(0, len(self._path_to_videos) - 1)
                 continue
-                # print(os.getpid())
 
             if self.dummy_frame is None:
                 self.dummy_frame = frames_decoded
@@ -344,9 +339,10 @@ class Kinetics(torch.utils.data.Dataset):
             idx = -1
             label = self._labels[index]
 
-            # hong added below
+            ## hong added below, 더미 데이터가 있을 경우, 데이터 로딩, 전처리 과정을 생략한다
             # if self.dummy_output is not None:
             #     return self.dummy_output
+            
             start_t = TTT.time()
             for i in range(num_decode):
                 for _ in range(num_aug):
@@ -356,19 +352,16 @@ class Kinetics(torch.utils.data.Dataset):
 
                     f_out[idx] = f_out[idx].float()
                     f_out[idx] = f_out[idx] / 255.0
-                    # print(f_out[idx].shape)
                     
                     # # T H W C -> C T H W.
                     # f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
                     # f_out[idx], _ = transform.random_crop(f_out[idx], crop_size[i])
                     # f_out[idx] = f_out[idx].permute(1, 2, 3, 0)
-                    # # print(f_out[idx].size())
 
                     # T H W C -> C T H W.
                     f_out[idx] = f_out[idx].permute(3, 0, 1, 2)
                     f_out[idx], _ = transform.random_crop(f_out[idx], crop_size[i])
                     f_out[idx] = f_out[idx].permute(1, 2, 3, 0)
-                    # print(f_out[idx].size())
 
                     if self.mode in ["train"] and self.cfg.DATA.SSL_COLOR_JITTER:
                         f_out[idx] = transform.color_jitter_video_ssl(
@@ -443,7 +436,8 @@ class Kinetics(torch.utils.data.Dataset):
             if self.cfg.DATA.DUMMY_LOAD:
                 if self.dummy_output is None:
                     self.dummy_output = (frames, label, index, time_idx, {})
-            print(f"preprocess: {TTT.time() - start_t}")
+            
+            logger.info(f"preprocess: {TTT.time() - start_t}")
             return frames, label, index, time_idx, {}
         else:
             logger.warning("Failed to fetch video after {} retries.".format(self._num_retries))

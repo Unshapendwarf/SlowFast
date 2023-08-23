@@ -12,13 +12,13 @@ TRAIN:
   CHECKPOINT_ENABLE: False
   CHECKPOINT_PERIOD: 100
   AUTO_RESUME: False
-  BATCH_SIZE: 32
+  BATCH_SIZE: 4
 TEST:
   ENABLE: False
   DATASET: kinetics
   BATCH_SIZE: 16
 DATA_LOADER:
-  NUM_WORKERS: 10
+  NUM_WORKERS: 2
   PIN_MEMORY: True
 MODEL:
   NUM_CLASSES: 256
@@ -92,3 +92,4 @@ DALI_ENABLE: False
 # DALI_FILE: "/home/hong/slowfast/index_files/dali/bigone.txt"
 DALI_FILE: "/home/hong/slowfast/index_files/dali/test.txt"
 LOG_PERIOD: 100
+LOG_MODEL_INFO: False
