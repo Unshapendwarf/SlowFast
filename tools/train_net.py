@@ -5,7 +5,7 @@
 
 import math
 import numpy as np
-import pprint
+import os
 import torch
 from fvcore.nn.precise_bn import get_bn_modules, update_bn_stats
 
@@ -89,7 +89,7 @@ def train_epoch(
             batch_size = inputs[0][0].size(0) if isinstance(inputs[0], list) else inputs[0].size(0)
             # if cur_iter > 400 // batch_size + 1:
             #     break
-            print(len(inputs), len(inputs[0]), inputs[0][0].shape)
+            # print(len(inputs), len(inputs[0]), inputs[0][0].shape)
             # for k, u_idx in enumerate(index.tolist()):
             #     # time(pts) info sample
             #     for u_start_n_end in time[k]:
@@ -140,7 +140,9 @@ def train_epoch(
                         meta[key] = val.cuda(non_blocking=True)
 
             etime = TT.time()
-            midtime = etime-stime
+            
+            # midtime: dataloading + preprocessing time
+            midtime = etime - stime
             stime = etime
 
             # batch_size = inputs[0][0].size(0) if isinstance(inputs[0], list) else inputs[0].size(0)
@@ -295,7 +297,7 @@ def train_epoch(
                     )
 
             etime = TT.time()
-            print(f"{midtime}, {etime - stime}")
+            print(f"dataload+preprocess: {midtime}, train: {etime - stime}")
             stime = etime
 
             train_meter.iter_toc()  # do measure allreduce for this meter
@@ -630,7 +632,7 @@ def train(cfg):
     epoch_timer = EpochTimer()
     idx_dict = {}
     for cur_epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCH):
-
+        os.system('sudo sh -c "sync; echo 3 > /proc/sys/vm/drop_caches"')
         if cur_epoch > 0 and cfg.DATA.LOADER_CHUNK_SIZE > 0:
             num_chunks = math.ceil(cfg.DATA.LOADER_CHUNK_OVERALL_SIZE / cfg.DATA.LOADER_CHUNK_SIZE)
             skip_rows = (cur_epoch) % num_chunks * cfg.DATA.LOADER_CHUNK_SIZE
@@ -668,7 +670,8 @@ def train(cfg):
         if hasattr(train_loader.dataset, "_set_epoch_num"):
             train_loader.dataset._set_epoch_num(cur_epoch)
         # Train for one epoch.
-        epoch_timer.epoch_tic()
+        if cur_epoch != 0:
+            epoch_timer.epoch_tic()
         hit_cnt = 0
         train_epoch(
             train_loader,
@@ -681,21 +684,24 @@ def train(cfg):
             idx_dict,
             writer,
         )
+        # start_epoch을 제외하고 시간을 기록한다
+        if cur_epoch != 0:
+            epoch_timer.epoch_toc()
+            logger.info(
+                f"Epoch {cur_epoch} takes {epoch_timer.last_epoch_time():.2f}s. Epochs "
+                f"from {start_epoch+1} to {cur_epoch} take "
+                f"{epoch_timer.avg_epoch_time():.2f}s in average and "
+                f"{epoch_timer.median_epoch_time():.2f}s in median."
+            )
+            logger.info(
+                f"For epoch {cur_epoch}, each iteraction takes "
+                f"{epoch_timer.last_epoch_time()/len(train_loader):.2f}s in average. "
+                f"From epoch {start_epoch+1} to {cur_epoch}, each iteraction takes "
+                f"{epoch_timer.avg_epoch_time()/len(train_loader):.2f}s in average."
+            )
 
-        epoch_timer.epoch_toc()
-        logger.info(
-            f"Epoch {cur_epoch} takes {epoch_timer.last_epoch_time():.2f}s. Epochs "
-            f"from {start_epoch} to {cur_epoch} take "
-            f"{epoch_timer.avg_epoch_time():.2f}s in average and "
-            f"{epoch_timer.median_epoch_time():.2f}s in median."
-        )
-        logger.info(
-            f"For epoch {cur_epoch}, each iteraction takes "
-            f"{epoch_timer.last_epoch_time()/len(train_loader):.2f}s in average. "
-            f"From epoch {start_epoch} to {cur_epoch}, each iteraction takes "
-            f"{epoch_timer.avg_epoch_time()/len(train_loader):.2f}s in average."
-        )
-
+        else:
+            print("start epoch is done")
         is_checkp_epoch = (
             cu.is_checkpoint_epoch(
                 cfg,

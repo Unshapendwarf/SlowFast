@@ -1,6 +1,7 @@
 # project
 checkpoints*/
 *.out
+out/
 
 # Byte-compiled / optimized / DLL files
 .slowfast

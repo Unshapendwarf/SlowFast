@@ -14,6 +14,8 @@ from slowfast.utils.env import pathmgr
 
 import nvtx
 import time as TTT
+from PIL import Image
+import pickle
 
 from . import decoder as decoder
 from . import transform as transform
@@ -250,29 +252,6 @@ class Kinetics(torch.utils.data.Dataset):
 
         for i_try in range(self._num_retries):
 
-            video_container = None
-            try:
-                video_container = container.get_video_container(
-                    self._path_to_videos[index],
-                    self.cfg.DATA_LOADER.ENABLE_MULTI_THREAD_DECODE,
-                    self.cfg.DATA.DECODING_BACKEND,
-                )
-            except Exception as e:
-                logger.info("Failed to load video from {} with error {}".format(self._path_to_videos[index], e))
-                if self.mode not in ["test"]:
-                    # let's try another one
-                    index = random.randint(0, len(self._path_to_videos) - 1)
-                continue  # Select a random video if the current video was not able to access.
-            if video_container is None:
-                logger.warning(
-                    "Failed to meta load video idx {} from {}; trial {}".format(
-                        index, self._path_to_videos[index], i_try
-                    )
-                )
-                if self.mode not in ["test"] and i_try > self._num_retries // 8:
-                    # let's try another one
-                    index = random.randint(0, len(self._path_to_videos) - 1)
-                continue
 
             frames_decoded, time_idx_decoded = (
                 [None] * num_decode,
@@ -283,53 +262,59 @@ class Kinetics(torch.utils.data.Dataset):
                 frames = self.dummy_frame
                 time_idx = self.dummy_time_idx_decode
             else:
-            
-                # for i in range(num_decode):
-                num_frames = [self.cfg.DATA.NUM_FRAMES]
-                sampling_rate = utils.get_random_sampling_rate(
-                    self.cfg.MULTIGRID.LONG_CYCLE_SAMPLING_RATE,
-                    self.cfg.DATA.SAMPLING_RATE,
-                )
-                sampling_rate = [sampling_rate]
-                if len(num_frames) < num_decode:
-                    num_frames.extend([num_frames[-1] for i in range(num_decode - len(num_frames))])
-                    # base case where keys have same frame-rate as query
-                    sampling_rate.extend([sampling_rate[-1] for i in range(num_decode - len(sampling_rate))])
-                elif len(num_frames) > num_decode:
-                    num_frames = num_frames[:num_decode]
-                    sampling_rate = sampling_rate[:num_decode]
-
-                if self.mode in ["train"]:
-                    assert len(min_scale) == len(max_scale) == len(crop_size) == num_decode
-                # print(num_decode)
-                target_fps = self.cfg.DATA.TARGET_FPS
-                if self.cfg.DATA.TRAIN_JITTER_FPS > 0.0 and self.mode in ["train"]:
-                    target_fps += random.uniform(0.0, self.cfg.DATA.TRAIN_JITTER_FPS)
-
-                # Decode video. Meta info is used to perform selective decoding.
-                frames, time_idx, tdiff = decoder.decode(
-                    video_container,
-                    sampling_rate,
-                    num_frames,
-                    temporal_sample_index,
-                    self.cfg.TEST.NUM_ENSEMBLE_VIEWS,
-                    video_meta=self._video_meta[index]
-                    if len(self._video_meta) < 5e6
-                    else {},  # do not cache on huge datasets
-                    target_fps=target_fps,
-                    backend=self.cfg.DATA.DECODING_BACKEND,
-                    use_offset=self.cfg.DATA.USE_OFFSET_SAMPLING,
-                    max_spatial_scale=min_scale[0]
-                    if all(x == min_scale[0] for x in min_scale)
-                    else 0,  # if self.mode in ["test"] else 0,
-                    time_diff_prob=self.p_convert_dt if self.mode in ["train"] else 0.0,
-                    temporally_rnd_clips=True,
-                    min_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MIN,
-                    max_delta=self.cfg.CONTRASTIVE.DELTA_CLIPS_MAX,
-                )
+                i = random.randint(1, 14)
+                # get the video frames and information form SAND file system
                 
-            frames_decoded = frames
-            time_idx_decoded = time_idx
+                filename = self._path_to_videos[index]
+                filename = os.path.basename(filename)
+                filename = os.path.splitext(os.path.basename(filename))[0]
+                
+                
+                # for train100.csv
+                # root_path = "/data/hong/k400/reduced/server/test_0821"
+                # root_path = "/home/hong/space-1/sand-dev/snfs/cmake/test_dir/client/test_0821"
+                
+                # for train998.csv
+                root_path = "/data/hong/k400/reduced/server/savepoint_998_31"
+                # root_path = "/home/hong/space-1/sand-dev/snfs/cmake/test_dir/client/savepoint_998_31"
+                
+
+                trgt_path = os.path.join(root_path, f'{filename}_{i}')
+                
+                decoded_data = [trgt_path + x for x in ["_a.png", "_b.png", "_st.pckl", "_tdiff.pckl"]]
+            
+                img_a, img_b = Image.open(decoded_data[0]), Image.open(decoded_data[1])
+                total_w, total_h = img_a.size
+                curr_frames_a, curr_frames_b = [], []
+
+                for w in range(int(total_w/self.cfg.DATA.TRAIN_CROP_SIZE)):
+                    for h in range(int(total_h/self.cfg.DATA.TRAIN_CROP_SIZE)):
+                        position = (w*self.cfg.DATA.TRAIN_CROP_SIZE, h*self.cfg.DATA.TRAIN_CROP_SIZE, \
+                            (w+1)*self.cfg.DATA.TRAIN_CROP_SIZE, (h+1)*self.cfg.DATA.TRAIN_CROP_SIZE)
+                        
+                        cropped_a, cropped_b = img_a.crop(position), img_b.crop(position)
+                        np_cropped_a, np_cropped_b = np.array(cropped_a), np.array(cropped_b)
+                        curr_frames_a.append(cropped_a)
+                        curr_frames_b.append(cropped_b)
+                
+                img_a.close()
+                img_b.close()
+                ret_frames = [torch.as_tensor(np.stack(curr_frames_a)), torch.as_tensor(np.stack(curr_frames_b))]
+
+                with open(decoded_data[2], 'rb') as f2:
+                    ret_st = pickle.load(f2)
+                with open(decoded_data[3], 'rb') as f3:
+                    ret_tdiff = pickle.load(f3)
+
+                # # remove storage data after loading is complete
+                # for u_file in decoded_data:
+                #     if os.path.exists(u_file):
+                #         os.remove(u_file)
+                #     else:
+                #         print("error to remove" + u_file)
+                    
+            frames_decoded = ret_frames
+            time_idx_decoded = ret_st
 
             # print(f"in decode: {type(frames)} {frames[0].shape}, {type(time_idx_decoded)}, {time_idx_decoded[0].shape}")
             # print(time_idx_decoded)
@@ -458,7 +443,7 @@ class Kinetics(torch.utils.data.Dataset):
             if self.cfg.DATA.DUMMY_LOAD:
                 if self.dummy_output is None:
                     self.dummy_output = (frames, label, index, time_idx, {})
-            # print(TTT.time() - start_t)
+            print(f"preprocess: {TTT.time() - start_t}")
             return frames, label, index, time_idx, {}
         else:
             logger.warning("Failed to fetch video after {} retries.".format(self._num_retries))
