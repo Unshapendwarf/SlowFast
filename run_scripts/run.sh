@@ -50,7 +50,7 @@ fi
 # 3. Function to generate and log a timestamp
 log_timestamp() {
     while true; do
-        gpu_log=$(nvidia-smi --id=$CUDA_VISIBLE_DEVICES --query-gpu=gpu_name,utilization.gpu,timestamp --format=csv)
+        gpu_log=$(nvidia-smi --id=$CUDA_VISIBLE_DEVICES --query-gpu=gpu_name,timestamp,utilization.gpu,power.draw --format=csv)
         echo $gpu_log >> out/$log_name.log
         sleep 1
     done
