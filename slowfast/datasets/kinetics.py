@@ -14,7 +14,8 @@ from slowfast.utils.env import pathmgr
 
 import nvtx
 import time as TTT
-from PIL import Image
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import pickle
 
 from . import decoder as decoder
@@ -274,8 +275,8 @@ class Kinetics(torch.utils.data.Dataset):
                 # root_path = "/home/hong/space-1/sand-dev/snfs/cmake/test_dir/client/test_0821"
                 
                 # for train998.csv
-                root_path = "/data/hong/k400/reduced/server/savepoint_998_31"
-                # root_path = "/home/hong/space-1/sand-dev/snfs/cmake/test_dir/client/savepoint_998_31"
+                # root_path = "/data/hong/k400/reduced/server/savepoint_998_31"
+                root_path = "/home/hong/space-1/sand-dev/snfs/cmake/test_dir/client/savepoint_998_31"
                 
 
                 trgt_path = os.path.join(root_path, f'{filename}_{i}')

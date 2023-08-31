@@ -51,21 +51,21 @@ def perform_check(mcheck_loader, cfg):
                 for i in range(len(inputs)):
                     if isinstance(inputs[i], (list,)):
                         for j in range(len(inputs[i])):
-                            inputs[i][j] = inputs[i][j].cuda(non_blocking=True)
+                            inputs[i][j] = inputs[i][j]
                     else:
-                        inputs[i] = inputs[i].cuda(non_blocking=True)
+                        inputs[i] = inputs[i]
             else:
-                inputs = inputs.cuda(non_blocking=True)
+                inputs = inputs
             if not isinstance(labels, list):
-                labels = labels.cuda(non_blocking=True)
-                index = index.cuda(non_blocking=True)
-                time = time.cuda(non_blocking=True)
+                labels = labels
+                index = index
+                time = time
             for key, val in meta.items():
                 if isinstance(val, (list,)):
                     for i in range(len(val)):
-                        val[i] = val[i].cuda(non_blocking=True)
+                        val[i] = val[i]
                 else:
-                    meta[key] = val.cuda(non_blocking=True)
+                    meta[key] = val
         # print(len(inputs))
         # print(inputs[0][0].shape)
         # print(labels.shape)
