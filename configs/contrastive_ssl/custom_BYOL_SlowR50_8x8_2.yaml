@@ -1,11 +1,11 @@
 TASK: ssl
 MEMCHECK:
-  ENABLE: True
+  ENABLE: False
   DATASET: kinetics
   BATCH_SIZE: 32
   # ONLY_FIRST_50: True
 TRAIN:
-  ENABLE: False
+  ENABLE: True
   DATASET: kinetics
   EVAL_ENABLE: False
   EVAL_PERIOD: 100

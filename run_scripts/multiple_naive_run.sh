@@ -65,9 +65,9 @@ log_ramstamp() {
     done
 }
 
-log_cpustamp() {
-    mpstat -P ALL 1 | tail -n +4 >> out/$log_name-cpu.log
-}
+# log_cpustamp() {
+#     mpstat -P 5-39 1 | tail -n +4 >> out/$log_name-cpu.log
+# }
 
 
 # 5. RUN the python script
@@ -79,7 +79,8 @@ if [ $GPU_LOG = 1 ]; then
     log_ramstamp &
     log_pid_ram=$!
     
-    log_cpustamp &
+    # log_cpustamp &
+    mpstat -P 5-39 1 | tail -n +4 >> out/$log_name-cpu.log &
     log_pid_cpu=$!
 fi
 
@@ -94,6 +95,7 @@ cleanup() {
         kill $log_pid_ram
         kill $log_pid_cpu
     fi
+    kill $process_pid_0
     exit 0
 }
 
@@ -101,7 +103,15 @@ cleanup() {
 echo "Starting process..."
 
 # sleep 10
-CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES /home/hong/"$my_python_path" tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml >> out/$log_name-stdout.log
+index_0=0
+CUDA_VISIBLE_DEVICES=$index_0 /home/hong/"$my_python_path" tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8_$index_0.yaml >> out/$log_name-stdout_$index_0.log &
+process_pid_0=$!
+
+index_1=1
+CUDA_VISIBLE_DEVICES=$index_1 /home/hong/"$my_python_path" tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8_$index_1.yaml >> out/$log_name-stdout_$index_1.log
+
+# index_2=2
+# CUDA_VISIBLE_DEVICES=$index_2 /home/hong/"$my_python_path" tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8_$index_2.yaml >> out/$log_name-stdout_$index_2.log
 
 echo "Process finished."
 

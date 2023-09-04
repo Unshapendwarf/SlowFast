@@ -1,11 +1,5 @@
 # /bin/bash
 
-trap cleanup INT
-
-cleanup() {
-    echo "Cleaning up and exiting..."
-    exit 0
-}
 
 # 1. Working directory setup
 MACHINE_NAME=$(hostname)
@@ -71,9 +65,9 @@ log_ramstamp() {
     done
 }
 
-log_cpustamp() {
-    mpstat -P ALL 1 | tail -n +4 >> out/$log_name-cpu.log
-}
+# log_cpustamp() {
+#     mpstat -P ALL 1 | tail -n +4 >> out/$log_name-cpu.log
+# }
 
 
 # 5. RUN the python script
@@ -85,7 +79,8 @@ if [ $GPU_LOG = 1 ]; then
     log_ramstamp &
     log_pid_ram=$!
     
-    log_cpustamp &
+    # log_cpustamp &
+    mpstat -P 5-39 1 | tail -n +4 >> out/$log_name-cpu.log &
     log_pid_cpu=$!
 fi
 
