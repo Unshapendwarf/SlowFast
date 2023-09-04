@@ -15,7 +15,7 @@ config_path="configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml"
 
 # 2-1. Machine specific setup: Select GPU and Python Environment
 if [ $MACHINE_NAME = "mango2" ];then
-    CUDA_VISIBLE_DEVICES=2
+    CUDA_VISIBLE_DEVICES=1
     my_python_path="anaconda3/envs/torch10/bin/python"
     # config_path="configs/Kinetics/custom_MVIT.yaml"
     # config_path="configs/Kinetics/custom_MVIT.yaml"

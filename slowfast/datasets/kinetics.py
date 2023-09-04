@@ -158,6 +158,11 @@ class Kinetics(torch.utils.data.Dataset):
                 len(self._path_to_videos), self.skip_rows, path_to_file
             )
         )
+        
+        self.avg_read_time = 0
+        self.avg_preprocessed_time = 0
+        self.cnt_processed = 0
+        
 
     def _set_epoch_num(self, epoch):
         self.epoch = epoch
@@ -262,7 +267,7 @@ class Kinetics(torch.utils.data.Dataset):
                 frames = self.dummy_frame
                 time_idx = self.dummy_time_idx_decode
             else:
-                i = random.randint(1, 14)
+                i = int(self.epoch) % 31
                 # get the video frames and information form SAND file system
                 
                 filename = self._path_to_videos[index]
@@ -275,18 +280,29 @@ class Kinetics(torch.utils.data.Dataset):
                 # root_path = "/home/hong/space-1/sand-dev/snfs/cmake/test_dir/client/test_0821"
                 
                 # for train998.csv
-                # root_path = "/data/hong/k400/reduced/server/savepoint_998_31"
-                root_path = "/home/hong/space-1/sand-dev/snfs/cmake/test_dir/client/savepoint_998_31"
+                root_path = "/data/hong/k400/reduced/server/savepoint_998_31"
+                # root_path = "/home/hong/space-1/sand-dev/snfs/cmake/test_dir/client/savepoint_998_31"
                 
 
                 trgt_path = os.path.join(root_path, f'{filename}_{i}')
                 
                 decoded_data = [trgt_path + x for x in ["_a.png", "_b.png", "_st.pckl", "_tdiff.pckl"]]
-            
+                
+                # time measure for read
+                
+                read_tic = TTT.time()
+                # time information for training
+                with open(decoded_data[2], 'rb') as f2:
+                    ret_st = pickle.load(f2)
+                with open(decoded_data[3], 'rb') as f3:
+                    ret_tdiff = pickle.load(f3)
+
+                # series of frames
                 img_a, img_b = Image.open(decoded_data[0]), Image.open(decoded_data[1])
                 total_w, total_h = img_a.size
                 curr_frames_a, curr_frames_b = [], []
 
+                
                 for w in range(int(total_w/self.cfg.DATA.TRAIN_CROP_SIZE)):
                     for h in range(int(total_h/self.cfg.DATA.TRAIN_CROP_SIZE)):
                         position = (w*self.cfg.DATA.TRAIN_CROP_SIZE, h*self.cfg.DATA.TRAIN_CROP_SIZE, \
@@ -299,12 +315,12 @@ class Kinetics(torch.utils.data.Dataset):
                 
                 img_a.close()
                 img_b.close()
+                
+                read_toc = TTT.time()
                 ret_frames = [torch.as_tensor(np.stack(curr_frames_a)), torch.as_tensor(np.stack(curr_frames_b))]
-
-                with open(decoded_data[2], 'rb') as f2:
-                    ret_st = pickle.load(f2)
-                with open(decoded_data[3], 'rb') as f3:
-                    ret_tdiff = pickle.load(f3)
+                
+                self.cnt_processed += 1
+                self.avg_read_time = ((read_toc-read_tic) + (self.cnt_processed-1)*self.avg_read_time) / self.cnt_processed
 
                 # # remove storage data after loading is complete
                 # for u_file in decoded_data:
@@ -344,7 +360,7 @@ class Kinetics(torch.utils.data.Dataset):
             # if self.dummy_output is not None:
             #     return self.dummy_output
             
-            start_t = TTT.time()
+            start_preprocess_t = TTT.time()
             for i in range(num_decode):
                 for _ in range(num_aug):
                     idx += 1
@@ -438,7 +454,13 @@ class Kinetics(torch.utils.data.Dataset):
                 if self.dummy_output is None:
                     self.dummy_output = (frames, label, index, time_idx, {})
             
-            logger.info(f"preprocess: {TTT.time() - start_t}")
+            # get the avg preprocessed time
+            diff_preprocess_t = TTT.time() - start_preprocess_t
+            self.avg_preprocessed_time = ( diff_preprocess_t + self.avg_preprocessed_time * (self.cnt_processed - 1)) / self.cnt_processed
+            # self.avg_preprocessed_time = ( diff_preprocess_t + self.avg_preprocessed_time * (self.cnt_processed - 1)) / self.cnt_processed
+            if self.num_videos / self.cfg.DATA_LOADER.NUM_WORKERS <= self.cnt_processed:
+                logger.info(f"{os.getpid()}: read_cnt={self.cnt_processed}, avg_read_t={self.avg_read_time}, avg_prepr_t={self.avg_preprocessed_time}")
+            
             return frames, label, index, time_idx, {}
         else:
             logger.warning("Failed to fetch video after {} retries.".format(self._num_retries))
