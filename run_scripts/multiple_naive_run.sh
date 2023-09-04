@@ -1,11 +1,5 @@
 # /bin/bash
 
-trap cleanup INT
-
-cleanup() {
-    echo "Cleaning up and exiting..."
-    exit 0
-}
 
 # 1. Working directory setup
 MACHINE_NAME=$(hostname)
@@ -57,7 +51,7 @@ fi
 # 3. Function to generate and log a timestamp
 log_gpustamp() {
     while true; do
-        gpu_log=$(nvidia-smi --id=$CUDA_VISIBLE_DEVICES --query-gpu=gpu_name,timestamp,utilization.gpu,power.draw --format=csv)
+        gpu_log=$(nvidia-smi --query-gpu=gpu_name,timestamp,utilization.gpu,power.draw --format=csv)
         echo $gpu_log >> out/$log_name-gpu.log
         sleep 1
     done
