@@ -44,7 +44,9 @@ def _pil_interp(method):
 logger = logging.getLogger(__name__)
 
 
-def random_short_side_scale_jitter(images, min_size, max_size, boxes=None, inverse_uniform_sampling=False):
+def random_short_side_scale_jitter(
+    images, min_size, max_size, boxes=None, inverse_uniform_sampling=False
+):
     """
     Perform a spatial short scale jittering on the given images and
     corresponding boxes.
@@ -253,8 +255,12 @@ def clip_boxes_to_image(boxes, height, width):
             `num boxes` x 4.
     """
     clipped_boxes = boxes.copy()
-    clipped_boxes[:, [0, 2]] = np.minimum(width - 1.0, np.maximum(0.0, boxes[:, [0, 2]]))
-    clipped_boxes[:, [1, 3]] = np.minimum(height - 1.0, np.maximum(0.0, boxes[:, [1, 3]]))
+    clipped_boxes[:, [0, 2]] = np.minimum(
+        width - 1.0, np.maximum(0.0, boxes[:, [0, 2]])
+    )
+    clipped_boxes[:, [1, 3]] = np.minimum(
+        height - 1.0, np.maximum(0.0, boxes[:, [1, 3]])
+    )
     return clipped_boxes
 
 
@@ -467,7 +473,9 @@ def color_normalization(images, mean, stddev):
     return out_images
 
 
-def _get_param_spatial_crop(scale, ratio, height, width, num_repeat=10, log_scale=True, switch_hw=False):
+def _get_param_spatial_crop(
+    scale, ratio, height, width, num_repeat=10, log_scale=True, switch_hw=False
+):
     """
     Given scale, ratio, height and width, return sampled coordinates of the videos.
     """
@@ -745,7 +753,9 @@ class RandomResizedCropAndInterpolation:
 
     def __repr__(self):
         if isinstance(self.interpolation, (tuple, list)):
-            interpolate_str = " ".join([_pil_interpolation_to_str[x] for x in self.interpolation])
+            interpolate_str = " ".join(
+                [_pil_interpolation_to_str[x] for x in self.interpolation]
+            )
         else:
             interpolate_str = _pil_interpolation_to_str[self.interpolation]
         format_string = self.__class__.__name__ + "(size={0}".format(self.size)
@@ -772,7 +782,6 @@ class MaskingGenerator:
         min_aspect=0.3,
         max_aspect=None,
     ):
-
         if not isinstance(
             mask_window_size,
             (
@@ -787,7 +796,9 @@ class MaskingGenerator:
         self.num_masking_patches = num_masking_patches
 
         self.min_num_patches = min_num_patches
-        self.max_num_patches = num_masking_patches if max_num_patches is None else max_num_patches
+        self.max_num_patches = (
+            num_masking_patches if max_num_patches is None else max_num_patches
+        )
 
         max_aspect = max_aspect or 1 / min_aspect
         self.log_aspect_ratio = (math.log(min_aspect), math.log(max_aspect))
@@ -864,11 +875,12 @@ class MaskingGenerator3D:
         min_aspect=0.3,
         max_aspect=None,
     ):
-
         self.temporal, self.height, self.width = mask_window_size
         self.num_masking_patches = num_masking_patches
         self.min_num_patches = min_num_patches
-        self.max_num_patches = num_masking_patches if max_num_patches is None else max_num_patches
+        self.max_num_patches = (
+            num_masking_patches if max_num_patches is None else max_num_patches
+        )
         max_aspect = max_aspect or 1 / min_aspect
         self.log_aspect_ratio = (math.log(min_aspect), math.log(max_aspect))
 
@@ -901,7 +913,9 @@ class MaskingGenerator3D:
                 left = random.randint(0, self.width - w)
                 front = random.randint(0, self.temporal - t)
 
-                num_masked = mask[front : front + t, top : top + h, left : left + w].sum()
+                num_masked = mask[
+                    front : front + t, top : top + h, left : left + w
+                ].sum()
                 # Overlap
                 if 0 < h * w * t - num_masked <= max_mask_patches:
                     for i in range(front, front + t):
@@ -962,7 +976,11 @@ def transforms_imagenet_train(
 
     scale = tuple(scale or (0.08, 1.0))  # default imagenet scale range
     ratio = tuple(ratio or (3.0 / 4.0, 4.0 / 3.0))  # default imagenet ratio range
-    primary_tfl = [RandomResizedCropAndInterpolation(img_size, scale=scale, ratio=ratio, interpolation=interpolation)]
+    primary_tfl = [
+        RandomResizedCropAndInterpolation(
+            img_size, scale=scale, ratio=ratio, interpolation=interpolation
+        )
+    ]
     if hflip > 0.0:
         primary_tfl += [transforms.RandomHorizontalFlip(p=hflip)]
     if vflip > 0.0:
@@ -1031,7 +1049,9 @@ def temporal_difference(
     absolute=False,
 ):
     if use_grayscale:
-        gray_channel = 0.299 * frames[2, :] + 0.587 * frames[1, :] + 0.114 * frames[0, :]
+        gray_channel = (
+            0.299 * frames[2, :] + 0.587 * frames[1, :] + 0.114 * frames[0, :]
+        )
         frames[0, :] = gray_channel
         frames[1, :] = gray_channel
         frames[2, :] = gray_channel
@@ -1066,7 +1086,11 @@ def color_jitter_video_ssl(
             [
                 tv.transforms.ToPILImage(),
                 tv.transforms.RandomApply(
-                    [tv.transforms.ColorJitter(bri_con_sat[0], bri_con_sat[1], bri_con_sat[2], hue)],
+                    [
+                        tv.transforms.ColorJitter(
+                            bri_con_sat[0], bri_con_sat[1], bri_con_sat[2], hue
+                        )
+                    ],
                     p=0.8,
                 ),
                 tv.transforms.RandomGrayscale(p=p_convert_gray),
@@ -1079,7 +1103,9 @@ def color_jitter_video_ssl(
             [
                 tv.transforms.ToPILImage(),
                 tv.transforms.RandomGrayscale(p=p_convert_gray),
-                tv.transforms.ColorJitter(bri_con_sat[0], bri_con_sat[1], bri_con_sat[2], hue),
+                tv.transforms.ColorJitter(
+                    bri_con_sat[0], bri_con_sat[1], bri_con_sat[2], hue
+                ),
                 tv.transforms.ToTensor(),
             ]
         )
