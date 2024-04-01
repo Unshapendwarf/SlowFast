@@ -415,7 +415,7 @@ def pyav_decode(
     frames_length = container.streams.video[0].frames
     duration = container.streams.video[0].duration
 
-    duration = None
+    # duration = None
     if duration is None:
         # If failed to fetch the decoding information, decode the entire video.
         # print("all decoding")
