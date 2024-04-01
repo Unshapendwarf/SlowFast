@@ -411,7 +411,7 @@ class Kinetics(torch.utils.data.Dataset):
             idx = -1
             label = self._labels[index]
 
-            ## hong added below, 더미 데이터가 있을 경우, 데이터 로딩, 전처리 과정을 생략한다
+            # ## hong added below, 더미 데이터가 있을 경우, 데이터 로딩, 전처리 과정을 생략한다
             # if self.dummy_output is not None:
             #     return self.dummy_output
 
