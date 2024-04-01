@@ -15,7 +15,7 @@ config_path="configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml"
 
 
 # 2-1. Machine specific setup: Select GPU and Python Environment
-if [ $MACHINE_NAME = "mango2" ];then
+if [ $MACHINE_NAME = "mango2" ] || [ $MACHINE_NAME = "goguma2" ];then
     CUDA_VISIBLE_DEVICES=1
     my_python_path="anaconda3/envs/torch10/bin/python"
     # config_path="configs/Kinetics/custom_MVIT.yaml"
@@ -28,16 +28,15 @@ elif [ $MACHINE_NAME = "mango3" ];then
     my_python_path="miniconda3/envs/slow/bin/python"
 fi
 
-
 # 4. GPU log or not
 echo "Record the GPU utilization of GPU-$CUDA_VISIBLE_DEVICES? [y/n]"
 
-GPU_LOG=0
+GPU_LOG=false
 read choice
 
 if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
     echo "nvidia-smi --id=$CUDA_VISIBLE_DEVICES --query-gpu=utilization.gpu --format=csv"
-    GPU_LOG=1
+    GPU_LOG=true
 
     echo "Logfile name: [XXX].log"
     read log_name
@@ -72,7 +71,7 @@ log_ramstamp() {
 
 # 5. RUN the python script
 
-if [ $GPU_LOG = 1 ]; then
+if [ $GPU_LOG = true ]; then
     log_gpustamp &
     log_pid_gpu=$!
 
@@ -89,7 +88,7 @@ trap cleanup INT
 
 cleanup() {
     echo "Cleaning up and exiting..."
-    if [ $GPU_LOG = 1 ]; then
+    if [ $GPU_LOG = true ]; then
         echo "Logging process stopped: $log_pid_gpu, $log_pid_ram, $log_pid_cpu"
         kill $log_pid_gpu
         kill $log_pid_ram
@@ -115,7 +114,7 @@ CUDA_VISIBLE_DEVICES=$index_1 /home/hong/"$my_python_path" tools/run_net.py --cf
 
 echo "Process finished."
 
-if [ $GPU_LOG = 1 ]; then
+if [ $GPU_LOG = true ]; then
     echo "Logging process stopped: $log_pid_gpu, $log_pid_ram, $log_pid_cpu"
     kill $log_pid_gpu
     kill $log_pid_ram

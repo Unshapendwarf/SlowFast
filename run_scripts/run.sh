@@ -32,12 +32,12 @@ fi
 # 4. GPU log or not
 echo "Record the GPU utilization of GPU-$CUDA_VISIBLE_DEVICES? [y/n]"
 
-GPU_LOG=0
+GPU_LOG=false
 read choice
 
 if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
     echo "nvidia-smi --id=$CUDA_VISIBLE_DEVICES --query-gpu=utilization.gpu --format=csv"
-    GPU_LOG=1
+    GPU_LOG=true
 
     echo "Logfile name: [XXX].log"
     read log_name
@@ -72,7 +72,16 @@ log_ramstamp() {
 
 # 5. RUN the python script
 
-if [ $GPU_LOG = 1 ]; then
+if [ $GPU_LOG = true ]; then
+    # echo "copy config file: configs/Kinetics/custom_mvit_32.yaml"
+    # cp configs/Kinetics/custom_mvit_32.yaml/ out/
+
+    # echo "copy config file: configs/contrastive_ssl/custom_BYOL_Slow550_8x8.yaml"
+    # cp configs/contrastive_ssl/custom_BYOL_Slow550_8x8.yaml out/
+
+    echo "copy config file: configs/masked_ssl/k400_VIT_B_16x4_MAE_PT.yaml"
+    cp configs/masked_ssl/k400_VIT_B_16x4_MAE_PT.yaml out/
+
     log_gpustamp &
     log_pid_gpu=$!
 
@@ -80,7 +89,7 @@ if [ $GPU_LOG = 1 ]; then
     log_pid_ram=$!
     
     # log_cpustamp &
-    mpstat -P 5-39 1 | tail -n +4 >> out/$log_name-cpu.log &
+    mpstat -P 0-11 1 | tail -n +4 >> out/$log_name-cpu.log &
     log_pid_cpu=$!
 fi
 
@@ -89,7 +98,7 @@ trap cleanup INT
 
 cleanup() {
     echo "Cleaning up and exiting..."
-    if [ $GPU_LOG = 1 ]; then
+    if [ $GPU_LOG = true ]; then
         echo "Logging process stopped: $log_pid_gpu, $log_pid_ram, $log_pid_cpu"
         kill $log_pid_gpu
         kill $log_pid_ram
@@ -104,14 +113,18 @@ echo "Starting process..."
 # sleep 10
 # run the python process
 if [ "$choice" = "y" ] || [ "$choice" = "Y" ]; then
-    CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES /home/hong/"$my_python_path" tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml >> out/$log_name-stdout.log   
+    # CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES /home/hong/"$my_python_path" tools/run_net.py --cfg configs/Kinetics/custom_mvit_32.yaml >> out/$log_name-stdout.log   
+    # CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES /home/hong/"$my_python_path" tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml >> out/$log_name-stdout.log   
+    CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES /home/hong/"$my_python_path" tools/run_net.py --cfg configs/masked_ssl/k400_VIT_B_16x4_MAE_PT.yaml >> out/$log_name-stdout.log   
 else
-    CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES /home/hong/"$my_python_path" tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml 
+    # CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES /home/hong/"$my_python_path" tools/run_net.py --cfg configs/Kinetics/custom_mvit_32.yaml 
+    # CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES /home/hong/"$my_python_path" tools/run_net.py --cfg configs/contrastive_ssl/custom_BYOL_SlowR50_8x8.yaml
+    CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES /home/hong/"$my_python_path" tools/run_net.py --cfg configs/masked_ssl/k400_VIT_B_16x4_MAE_PT.yaml 
 fi
 
 echo "Process finished."
 
-if [ $GPU_LOG = 1 ]; then
+if [ $GPU_LOG = true ]; then
     echo "Logging process stopped: $log_pid_gpu, $log_pid_ram, $log_pid_cpu"
     kill $log_pid_gpu
     kill $log_pid_ram
