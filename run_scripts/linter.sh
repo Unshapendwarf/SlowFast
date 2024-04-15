@@ -30,7 +30,7 @@ if [ "$last_part" = "run_scripts" ]; then
 
 
 else
-  echo "Please start in 'run_script' directory"
+  echo "Please start in 'run_scripts' directory"
   exit 0
 fi
 
