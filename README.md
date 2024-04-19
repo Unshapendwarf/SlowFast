@@ -13,9 +13,9 @@ PySlowFast is an open source video understanding codebase from FAIR that provide
 - [Masked Autoencoders As Spatiotemporal Learners](https://arxiv.org/abs/2205.09113)
 - [Reversible Vision Transformers](https://openaccess.thecvf.com/content/CVPR2022/papers/Mangalam_Reversible_Vision_Transformers_CVPR_2022_paper.pdf)
 
-<div align="center">
+<!-- <div align="center">
   <img src="demo/ava_demo.gif" width="600px"/>
-</div>
+</div> -->
 
 ## Introduction
 
